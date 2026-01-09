@@ -136,8 +136,9 @@ class AmplifierServer:
         # Override dependency functions
         sessions_api.get_session_manager = lambda: self.session_manager
         devices_api.get_device_manager = lambda: self.device_manager
-        notifications_api.get_session_manager = lambda: self.session_manager
-        notifications_api.get_device_manager = lambda: self.device_manager
+        
+        # Use inject_managers for notifications (proper pattern)
+        notifications_api.inject_managers(self.session_manager, self.device_manager)
         
         # Inject into WebSocket module
         websocket_api.inject_managers(self.session_manager, self.device_manager)

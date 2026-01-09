@@ -18,15 +18,30 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+# Module-level storage for injected managers
+_session_manager: SessionManager | None = None
+_device_manager: DeviceManager | None = None
+
+
+def inject_managers(session_manager: SessionManager, device_manager: DeviceManager) -> None:
+    """Inject managers into this module."""
+    global _session_manager, _device_manager
+    _session_manager = session_manager
+    _device_manager = device_manager
+
 
 def get_session_manager() -> SessionManager:
     """Dependency to get session manager - injected by server."""
-    raise NotImplementedError("Session manager not injected")
+    if _session_manager is None:
+        raise NotImplementedError("Session manager not injected")
+    return _session_manager
 
 
 def get_device_manager() -> DeviceManager:
     """Dependency to get device manager - injected by server."""
-    raise NotImplementedError("Device manager not injected")
+    if _device_manager is None:
+        raise NotImplementedError("Device manager not injected")
+    return _device_manager
 
 
 @router.post("/ingest")
