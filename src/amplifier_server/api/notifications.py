@@ -1,10 +1,10 @@
 """Notification API endpoints."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from amplifier_server.models import (
     IngestNotificationRequest,
@@ -13,6 +13,7 @@ from amplifier_server.models import (
 )
 from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.notification_store import NotificationStore
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +22,19 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 # Module-level storage for injected managers
 _session_manager: SessionManager | None = None
 _device_manager: DeviceManager | None = None
+_notification_store: NotificationStore | None = None
 
 
-def inject_managers(session_manager: SessionManager, device_manager: DeviceManager) -> None:
+def inject_managers(
+    session_manager: SessionManager,
+    device_manager: DeviceManager,
+    notification_store: NotificationStore | None = None,
+) -> None:
     """Inject managers into this module."""
-    global _session_manager, _device_manager
+    global _session_manager, _device_manager, _notification_store
     _session_manager = session_manager
     _device_manager = device_manager
+    _notification_store = notification_store
 
 
 def get_session_manager() -> SessionManager:
@@ -44,63 +51,103 @@ def get_device_manager() -> DeviceManager:
     return _device_manager
 
 
+def get_notification_store() -> NotificationStore:
+    """Dependency to get notification store - injected by server."""
+    if _notification_store is None:
+        raise NotImplementedError("Notification store not injected")
+    return _notification_store
+
+
 @router.post("/ingest")
 async def ingest_notification(
     request: IngestNotificationRequest,
     target_session: str | None = None,
     session_manager: SessionManager = Depends(get_session_manager),
+    notification_store: NotificationStore = Depends(get_notification_store),
 ) -> dict[str, Any]:
     """Ingest a notification from a client device.
     
     This endpoint receives notifications from Windows clients, mobile devices,
-    or other sources and routes them to the appropriate session for processing.
-    
-    If target_session is specified, the notification is injected into that session.
-    Otherwise, it's routed to the default "personal-hub" session if it exists.
+    or other sources. Notifications are stored and optionally routed to a session.
     """
-    # Format notification for injection
-    notification_text = _format_notification_for_context(request)
+    # Store the notification
+    notification_id = await notification_store.store(request)
     
-    # Determine target session
-    sessions = await session_manager.list_sessions()
+    logger.info(
+        f"Stored notification {notification_id} from {request.device_id}/{request.app_id}: "
+        f"{request.title[:50]}..."
+    )
     
-    if target_session:
-        session_id = target_session
-    elif sessions:
-        # Use first available session (could be smarter about this)
-        session_id = sessions[0].session_id
-    else:
-        # No sessions available - log and return
-        logger.warning(f"No sessions available for notification from {request.device_id}")
-        return {
-            "status": "queued",
-            "message": "No active sessions - notification logged",
-            "device_id": request.device_id,
-        }
+    return {
+        "status": "stored",
+        "notification_id": notification_id,
+        "device_id": request.device_id,
+        "app_id": request.app_id,
+    }
+
+
+@router.get("/recent")
+async def get_recent_notifications(
+    limit: int = Query(default=50, le=500),
+    device_id: str | None = None,
+    app_id: str | None = None,
+    hours: int = Query(default=24, le=168),
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> dict[str, Any]:
+    """Get recent notifications with optional filters."""
+    since = datetime.utcnow() - timedelta(hours=hours)
     
-    try:
-        # Inject into session as a user message
-        await session_manager.inject_context(
-            session_id=session_id,
-            content=notification_text,
-            role="user",
-        )
-        
-        logger.info(
-            f"Injected notification from {request.device_id}/{request.app_id} "
-            f"into session {session_id}"
-        )
-        
-        return {
-            "status": "ingested",
-            "session_id": session_id,
-            "device_id": request.device_id,
-            "app_id": request.app_id,
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to ingest notification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    notifications = await notification_store.get_recent(
+        limit=limit,
+        device_id=device_id,
+        app_id=app_id,
+        since=since,
+    )
+    
+    return {
+        "count": len(notifications),
+        "since": since.isoformat(),
+        "notifications": notifications,
+    }
+
+
+@router.get("/stats")
+async def get_notification_stats(
+    hours: int = Query(default=24, le=168),
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> dict[str, Any]:
+    """Get notification statistics."""
+    since = datetime.utcnow() - timedelta(hours=hours)
+    return await notification_store.get_summary_stats(since=since)
+
+
+@router.get("/digest")
+async def get_notification_digest(
+    hours: int = Query(default=1, le=24),
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> dict[str, Any]:
+    """Generate a digest of recent notifications."""
+    since = datetime.utcnow() - timedelta(hours=hours)
+    digest = await notification_store.generate_digest(since=since)
+    
+    return {
+        "since": since.isoformat(),
+        "digest": digest,
+    }
+
+
+@router.get("/{notification_id}")
+async def get_notification(
+    notification_id: int,
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> dict[str, Any]:
+    """Get a specific notification by ID."""
+    notification = await notification_store.get_by_id(notification_id)
+    
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return notification
 
 
 @router.post("/push")

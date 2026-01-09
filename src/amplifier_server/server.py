@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.notification_store import NotificationStore
 from amplifier_server.api import (
     sessions_router,
     devices_router,
@@ -55,6 +56,7 @@ class AmplifierServer:
         # Core managers
         self.session_manager = SessionManager(self.data_dir / "sessions")
         self.device_manager = DeviceManager()
+        self.notification_store = NotificationStore(self.data_dir / "notifications.db")
         
         # FastAPI app
         self.app = self._create_app()
@@ -70,8 +72,14 @@ class AmplifierServer:
             """Manage server lifecycle."""
             logger.info(f"Amplifier Server starting on {self.host}:{self.port}")
             logger.info(f"Data directory: {self.data_dir}")
+            
+            # Initialize notification store
+            await self.notification_store.initialize()
+            
             yield
+            
             logger.info("Amplifier Server shutting down")
+            await self.notification_store.close()
             await self.session_manager.shutdown()
         
         app = FastAPI(
@@ -138,7 +146,11 @@ class AmplifierServer:
         devices_api.get_device_manager = lambda: self.device_manager
         
         # Use inject_managers for notifications (proper pattern)
-        notifications_api.inject_managers(self.session_manager, self.device_manager)
+        notifications_api.inject_managers(
+            self.session_manager,
+            self.device_manager,
+            self.notification_store,
+        )
         
         # Inject into WebSocket module
         websocket_api.inject_managers(self.session_manager, self.device_manager)
