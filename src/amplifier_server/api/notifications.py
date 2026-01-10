@@ -14,6 +14,7 @@ from amplifier_server.models import (
 from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.notification_store import NotificationStore
+from amplifier_server.notification_processor import NotificationProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +24,21 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 _session_manager: SessionManager | None = None
 _device_manager: DeviceManager | None = None
 _notification_store: NotificationStore | None = None
+_notification_processor: NotificationProcessor | None = None
 
 
 def inject_managers(
     session_manager: SessionManager,
     device_manager: DeviceManager,
     notification_store: NotificationStore | None = None,
+    notification_processor: NotificationProcessor | None = None,
 ) -> None:
     """Inject managers into this module."""
-    global _session_manager, _device_manager, _notification_store
+    global _session_manager, _device_manager, _notification_store, _notification_processor
     _session_manager = session_manager
     _device_manager = device_manager
     _notification_store = notification_store
+    _notification_processor = notification_processor
 
 
 def get_session_manager() -> SessionManager:
@@ -58,17 +62,23 @@ def get_notification_store() -> NotificationStore:
     return _notification_store
 
 
+def get_notification_processor() -> NotificationProcessor | None:
+    """Dependency to get notification processor - may be None."""
+    return _notification_processor
+
+
 @router.post("/ingest")
 async def ingest_notification(
     request: IngestNotificationRequest,
     target_session: str | None = None,
     session_manager: SessionManager = Depends(get_session_manager),
     notification_store: NotificationStore = Depends(get_notification_store),
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
 ) -> dict[str, Any]:
     """Ingest a notification from a client device.
     
     This endpoint receives notifications from Windows clients, mobile devices,
-    or other sources. Notifications are stored and optionally routed to a session.
+    or other sources. Notifications are stored and queued for AI processing.
     """
     # Store the notification
     notification_id = await notification_store.store(request)
@@ -77,6 +87,10 @@ async def ingest_notification(
         f"Stored notification {notification_id} from {request.device_id}/{request.app_id}: "
         f"{request.title[:50]}..."
     )
+    
+    # Enqueue for processing
+    if processor:
+        await processor.enqueue(notification_id)
     
     return {
         "status": "stored",
@@ -171,6 +185,73 @@ async def push_notification(
         "total_devices": total_count,
         "results": results,
     }
+
+
+# --- Policy Management Endpoints ---
+
+@router.get("/config")
+async def get_processor_config(
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Get current notification processing configuration."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    config = processor.config
+    return {
+        "vip_senders": config.vip_senders,
+        "urgent_keywords": config.urgent_keywords,
+        "action_keywords": config.action_keywords,
+        "priority_apps": config.priority_apps,
+        "low_priority_apps": config.low_priority_apps,
+        "push_threshold": config.push_threshold,
+        "user_aliases": config.user_aliases,
+    }
+
+
+@router.post("/vip/add")
+async def add_vip_sender(
+    sender: str,
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Add a VIP sender (always high priority)."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    processor.add_vip(sender)
+    return {"status": "added", "sender": sender, "vip_list": processor.config.vip_senders}
+
+
+@router.post("/vip/remove")
+async def remove_vip_sender(
+    sender: str,
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Remove a VIP sender."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    processor.remove_vip(sender)
+    return {"status": "removed", "sender": sender, "vip_list": processor.config.vip_senders}
+
+
+@router.post("/keyword/add")
+async def add_keyword(
+    keyword: str,
+    category: str = "urgent",
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Add a keyword to watch for (urgent or action)."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    processor.add_keyword(keyword, category)
+    
+    keywords = (
+        processor.config.urgent_keywords if category == "urgent"
+        else processor.config.action_keywords
+    )
+    return {"status": "added", "keyword": keyword, "category": category, "keywords": keywords}
 
 
 def _format_notification_for_context(request: IngestNotificationRequest) -> str:

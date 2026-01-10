@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.notification_store import NotificationStore
+from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
 from amplifier_server.api import (
     sessions_router,
     devices_router,
@@ -58,6 +59,18 @@ class AmplifierServer:
         self.device_manager = DeviceManager()
         self.notification_store = NotificationStore(self.data_dir / "notifications.db")
         
+        # Notification processor with default config
+        self.notification_processor = NotificationProcessor(
+            notification_store=self.notification_store,
+            device_manager=self.device_manager,
+            config=ScoringConfig(
+                # Add your name/aliases for mention detection
+                user_aliases=["Brian", "bkrabach"],
+                # Add VIP senders (will be configurable via API)
+                vip_senders=[],
+            ),
+        )
+        
         # FastAPI app
         self.app = self._create_app()
         
@@ -76,9 +89,13 @@ class AmplifierServer:
             # Initialize notification store
             await self.notification_store.initialize()
             
+            # Start notification processor
+            await self.notification_processor.start()
+            
             yield
             
             logger.info("Amplifier Server shutting down")
+            await self.notification_processor.stop()
             await self.notification_store.close()
             await self.session_manager.shutdown()
         
@@ -150,6 +167,7 @@ class AmplifierServer:
             self.session_manager,
             self.device_manager,
             self.notification_store,
+            self.notification_processor,
         )
         
         # Inject into WebSocket module
