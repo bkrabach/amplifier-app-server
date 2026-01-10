@@ -76,13 +76,15 @@ class IngestNotificationRequest(BaseModel):
     """Request to ingest a notification from a client device."""
     
     device_id: str = Field(description="Identifier for the source device")
-    app_id: str = Field(description="Source application (e.g., 'Microsoft Teams')")
+    app_id: str = Field(description="Source application ID")
+    app_name: str | None = Field(default=None, description="Human-readable app name")
     title: str
     body: str | None = None
     timestamp: str = Field(description="ISO-8601 timestamp")
     sender: str | None = None
     conversation_hint: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    raw: dict[str, Any] | None = Field(default=None, description="Raw notification data")
 
 
 class PushNotificationRequest(BaseModel):
