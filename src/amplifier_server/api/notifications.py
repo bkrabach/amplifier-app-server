@@ -4,17 +4,16 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from amplifier_server.device_manager import DeviceManager
 from amplifier_server.models import (
     IngestNotificationRequest,
     PushNotificationRequest,
-    WebSocketMessage,
 )
-from amplifier_server.session_manager import SessionManager
-from amplifier_server.device_manager import DeviceManager
-from amplifier_server.notification_store import NotificationStore
 from amplifier_server.notification_processor import NotificationProcessor
+from amplifier_server.notification_store import NotificationStore
+from amplifier_server.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,22 +75,32 @@ async def ingest_notification(
     processor: NotificationProcessor | None = Depends(get_notification_processor),
 ) -> dict[str, Any]:
     """Ingest a notification from a client device.
-    
+
     This endpoint receives notifications from Windows clients, mobile devices,
     or other sources. Notifications are stored and queued for AI processing.
     """
+    # Debug: Log raw notification data
+    logger.info(
+        f"[RAW NOTIFICATION] device={request.device_id} app={request.app_id}\n"
+        f"  title: {repr(request.title)}\n"
+        f"  body: {repr(request.body)}\n"
+        f"  sender: {repr(request.sender)}\n"
+        f"  conversation: {repr(request.conversation)}\n"
+        f"  raw_payload: {request.raw_payload}"
+    )
+
     # Store the notification
     notification_id = await notification_store.store(request)
-    
+
     logger.info(
         f"Stored notification {notification_id} from {request.device_id}/{request.app_id}: "
-        f"{request.title[:50]}..."
+        f"{request.title[:50] if request.title else '(empty)'}..."
     )
-    
+
     # Enqueue for processing
     if processor:
         await processor.enqueue(notification_id)
-    
+
     return {
         "status": "stored",
         "notification_id": notification_id,
@@ -110,14 +119,14 @@ async def get_recent_notifications(
 ) -> dict[str, Any]:
     """Get recent notifications with optional filters."""
     since = datetime.utcnow() - timedelta(hours=hours)
-    
+
     notifications = await notification_store.get_recent(
         limit=limit,
         device_id=device_id,
         app_id=app_id,
         since=since,
     )
-    
+
     return {
         "count": len(notifications),
         "since": since.isoformat(),
@@ -143,7 +152,7 @@ async def get_notification_digest(
     """Generate a digest of recent notifications."""
     since = datetime.utcnow() - timedelta(hours=hours)
     digest = await notification_store.generate_digest(since=since)
-    
+
     return {
         "since": since.isoformat(),
         "digest": digest,
@@ -157,10 +166,10 @@ async def get_notification(
 ) -> dict[str, Any]:
     """Get a specific notification by ID."""
     notification = await notification_store.get_by_id(notification_id)
-    
+
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
-    
+
     return notification
 
 
@@ -170,15 +179,15 @@ async def push_notification(
     device_manager: DeviceManager = Depends(get_device_manager),
 ) -> dict[str, Any]:
     """Push a notification to connected device(s).
-    
+
     This endpoint allows the AI session to send notifications back to
     the user's devices.
     """
     results = await device_manager.push_notification(request)
-    
+
     sent_count = sum(1 for success in results.values() if success)
     total_count = len(results)
-    
+
     return {
         "status": "sent" if sent_count > 0 else "no_devices",
         "sent_count": sent_count,
@@ -189,6 +198,7 @@ async def push_notification(
 
 # --- Policy Management Endpoints ---
 
+
 @router.get("/config")
 async def get_processor_config(
     processor: NotificationProcessor | None = Depends(get_notification_processor),
@@ -196,7 +206,7 @@ async def get_processor_config(
     """Get current notification processing configuration."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     config = processor.config
     return {
         "vip_senders": config.vip_senders,
@@ -217,7 +227,7 @@ async def add_vip_sender(
     """Add a VIP sender (always high priority)."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     processor.add_vip(sender)
     return {"status": "added", "sender": sender, "vip_list": processor.config.vip_senders}
 
@@ -230,7 +240,7 @@ async def remove_vip_sender(
     """Remove a VIP sender."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     processor.remove_vip(sender)
     return {"status": "removed", "sender": sender, "vip_list": processor.config.vip_senders}
 
@@ -244,17 +254,19 @@ async def add_keyword(
     """Add a keyword to watch for (urgent or action)."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     processor.add_keyword(keyword, category)
-    
+
     keywords = (
-        processor.config.urgent_keywords if category == "urgent"
+        processor.config.urgent_keywords
+        if category == "urgent"
         else processor.config.action_keywords
     )
     return {"status": "added", "keyword": keyword, "category": category, "keywords": keywords}
 
 
 # --- LLM Scoring Control ---
+
 
 @router.post("/llm/enable")
 async def enable_llm_scoring(
@@ -263,13 +275,13 @@ async def enable_llm_scoring(
     """Enable LLM-based scoring (requires Amplifier to be available)."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     if not processor.llm_scorer:
         return {
             "error": "LLM scorer not initialized",
             "hint": "Amplifier may not be available or failed to initialize",
         }
-    
+
     processor.enable_llm_scoring(True)
     return {"status": "enabled", "mode": "llm"}
 
@@ -281,7 +293,7 @@ async def disable_llm_scoring(
     """Disable LLM-based scoring (use heuristics only)."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     processor.enable_llm_scoring(False)
     return {"status": "disabled", "mode": "heuristics"}
 
@@ -293,7 +305,7 @@ async def get_llm_status(
     """Get current LLM scoring status."""
     if not processor:
         return {"error": "Processor not available"}
-    
+
     return {
         "llm_available": processor.llm_scorer is not None,
         "llm_enabled": processor.use_llm,
@@ -308,18 +320,18 @@ def _format_notification_for_context(request: IngestNotificationRequest) -> str:
         f"App: {request.app_id}",
         f"Time: {request.timestamp}",
     ]
-    
+
     if request.sender:
         parts.append(f"From: {request.sender}")
-    
+
     if request.conversation_hint:
         parts.append(f"Conversation: {request.conversation_hint}")
-    
+
     parts.append(f"Title: {request.title}")
-    
+
     if request.body:
         parts.append(f"Body: {request.body}")
-    
+
     parts.append("[END NOTIFICATION]")
-    
+
     return "\n".join(parts)
