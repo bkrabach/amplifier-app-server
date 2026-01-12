@@ -266,9 +266,6 @@ class SessionManager:
                         },
                     }
                 ],
-                orchestrator={
-                    "module": "loop-basic",  # Simple orchestrator, no streaming overhead
-                },
                 tools=[],  # No tools needed for scoring
                 hooks=[],  # No hooks needed
             )
@@ -284,7 +281,7 @@ class SessionManager:
 
         except Exception as e:
             logger.error(f"Failed to create minimal session: {e}")
-            return MockSession(session_id, "minimal-scorer")
+            raise  # Don't silently fall back - fail fast
 
     async def get_session(self, session_id: str) -> Any:
         """Get a session by ID.
