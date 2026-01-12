@@ -2,14 +2,16 @@
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any, TYPE_CHECKING
 
 from amplifier_server.models import IngestNotificationRequest, PushNotificationRequest
 from amplifier_server.notification_store import NotificationStore
 from amplifier_server.device_manager import DeviceManager
+
+if TYPE_CHECKING:
+    from amplifier_server.llm_scorer import LLMScorer
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,7 @@ class NotificationProcessor:
     """Processes and scores incoming notifications.
     
     Decides which notifications warrant immediate attention vs. summarization.
+    Supports both heuristic (fast) and LLM-based (smart) scoring.
     """
     
     def __init__(
@@ -73,10 +76,14 @@ class NotificationProcessor:
         notification_store: NotificationStore,
         device_manager: DeviceManager,
         config: ScoringConfig | None = None,
+        llm_scorer: "LLMScorer | None" = None,
+        use_llm: bool = False,
     ):
         self.store = notification_store
         self.device_manager = device_manager
         self.config = config or ScoringConfig()
+        self.llm_scorer = llm_scorer
+        self.use_llm = use_llm  # Whether to use LLM scoring (vs heuristics only)
         
         # Processing queue
         self._queue: asyncio.Queue[int] = asyncio.Queue()
@@ -134,8 +141,11 @@ class NotificationProcessor:
             logger.warning(f"Notification {notification_id} not found")
             return
         
-        # Score the notification
-        result = self._score_notification(notification)
+        # Score the notification (LLM or heuristics)
+        if self.use_llm and self.llm_scorer:
+            result = await self._score_with_llm(notification)
+        else:
+            result = self._score_notification(notification)
         
         # Update store with results
         await self.store.mark_processed(
@@ -153,6 +163,33 @@ class NotificationProcessor:
         # If high priority, push to device
         if result.decision == "push":
             await self._push_notification(notification, result)
+    
+    async def _score_with_llm(self, notification: dict[str, Any]) -> ScoringResult:
+        """Score notification using LLM.
+        
+        Falls back to heuristics if LLM fails.
+        """
+        try:
+            # Update LLM scorer config with current VIPs/aliases
+            if self.llm_scorer:
+                self.llm_scorer.update_config(
+                    user_aliases=self.config.user_aliases,
+                    vip_senders=self.config.vip_senders,
+                )
+                
+                llm_result = await self.llm_scorer.score(notification)
+                
+                return ScoringResult(
+                    score=llm_result.score,
+                    decision=llm_result.decision,
+                    rationale=f"[LLM] {llm_result.rationale}",
+                    tags=llm_result.tags,
+                )
+        except Exception as e:
+            logger.warning(f"LLM scoring failed, falling back to heuristics: {e}")
+        
+        # Fallback to heuristics
+        return self._score_notification(notification)
     
     def _score_notification(self, notification: dict[str, Any]) -> ScoringResult:
         """Score a notification based on rules.
@@ -291,3 +328,14 @@ class NotificationProcessor:
         if keyword not in target:
             target.append(keyword)
             logger.info(f"Added {category} keyword: {keyword}")
+    
+    def set_llm_scorer(self, scorer: "LLMScorer") -> None:
+        """Set the LLM scorer instance."""
+        self.llm_scorer = scorer
+        logger.info("LLM scorer configured")
+    
+    def enable_llm_scoring(self, enabled: bool = True) -> None:
+        """Enable or disable LLM-based scoring."""
+        self.use_llm = enabled
+        mode = "LLM" if enabled else "heuristics"
+        logger.info(f"Scoring mode: {mode}")

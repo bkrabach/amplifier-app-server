@@ -254,6 +254,53 @@ async def add_keyword(
     return {"status": "added", "keyword": keyword, "category": category, "keywords": keywords}
 
 
+# --- LLM Scoring Control ---
+
+@router.post("/llm/enable")
+async def enable_llm_scoring(
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Enable LLM-based scoring (requires Amplifier to be available)."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    if not processor.llm_scorer:
+        return {
+            "error": "LLM scorer not initialized",
+            "hint": "Amplifier may not be available or failed to initialize",
+        }
+    
+    processor.enable_llm_scoring(True)
+    return {"status": "enabled", "mode": "llm"}
+
+
+@router.post("/llm/disable")
+async def disable_llm_scoring(
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Disable LLM-based scoring (use heuristics only)."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    processor.enable_llm_scoring(False)
+    return {"status": "disabled", "mode": "heuristics"}
+
+
+@router.get("/llm/status")
+async def get_llm_status(
+    processor: NotificationProcessor | None = Depends(get_notification_processor),
+) -> dict[str, Any]:
+    """Get current LLM scoring status."""
+    if not processor:
+        return {"error": "Processor not available"}
+    
+    return {
+        "llm_available": processor.llm_scorer is not None,
+        "llm_enabled": processor.use_llm,
+        "mode": "llm" if processor.use_llm else "heuristics",
+    }
+
+
 def _format_notification_for_context(request: IngestNotificationRequest) -> str:
     """Format a notification for injection into session context."""
     parts = [

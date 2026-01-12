@@ -41,20 +41,35 @@ class SessionManager:
         self._session_locks: dict[str, asyncio.Lock] = {}
         
         # Bundle cache
-        self._bundle_cache: dict[str, Any] = {}
+        self._bundle_cache: dict[str, Any] = {}  # uri -> Bundle
+        self._prepared_cache: dict[str, Any] = {}  # cache_key -> PreparedBundle
+        
+        # Check if Amplifier is available
+        self._amplifier_available = self._check_amplifier_available()
+    
+    def _check_amplifier_available(self) -> bool:
+        """Check if amplifier-foundation is available."""
+        try:
+            from amplifier_foundation import load_bundle
+            return True
+        except ImportError:
+            logger.warning("amplifier-foundation not available, using mock sessions")
+            return False
     
     async def create_session(
         self,
         bundle: str,
         session_id: str | None = None,
         config: dict[str, Any] | None = None,
+        provider_bundle: str | None = None,
     ) -> str:
         """Create and initialize a new session.
         
         Args:
-            bundle: Bundle name or path
+            bundle: Bundle name or URI (git+https://..., file path, etc.)
             session_id: Optional custom session ID
             config: Session configuration overrides
+            provider_bundle: Optional provider bundle to compose
             
         Returns:
             The session ID
@@ -79,13 +94,12 @@ class SessionManager:
         self._session_locks[session_id] = asyncio.Lock()
         
         try:
-            # Load bundle and create session
-            # Note: This is a placeholder - actual implementation depends on
-            # how amplifier-foundation exposes bundle loading
+            # Create session using Amplifier or mock
             session = await self._create_amplifier_session(
-                bundle=bundle,
+                bundle_uri=bundle,
                 session_id=session_id,
                 config=config or {},
+                provider_bundle=provider_bundle,
             )
             
             self._sessions[session_id] = session
@@ -100,42 +114,75 @@ class SessionManager:
             logger.error(f"Failed to create session {session_id}: {e}")
             raise
     
+    async def _load_bundle(self, bundle_uri: str) -> Any:
+        """Load a bundle with caching."""
+        if bundle_uri not in self._bundle_cache:
+            from amplifier_foundation import load_bundle
+            bundle = await load_bundle(bundle_uri)
+            self._bundle_cache[bundle_uri] = bundle
+        return self._bundle_cache[bundle_uri]
+    
+    async def _prepare_bundle(self, bundle: Any) -> Any:
+        """Prepare a bundle for execution with caching."""
+        cache_key = f"{bundle.name}:{bundle.version}"
+        if cache_key not in self._prepared_cache:
+            prepared = await bundle.prepare(install_deps=True)
+            self._prepared_cache[cache_key] = prepared
+        return self._prepared_cache[cache_key]
+    
     async def _create_amplifier_session(
         self,
-        bundle: str,
+        bundle_uri: str,
         session_id: str,
         config: dict[str, Any],
+        provider_bundle: str | None = None,
     ) -> Any:
         """Create an Amplifier session from a bundle.
         
-        This is where we integrate with amplifier-core/foundation.
+        This integrates with amplifier-foundation to create real sessions.
         """
-        # Import here to avoid circular deps and allow graceful degradation
+        if not self._amplifier_available:
+            logger.info(f"Using mock session for {session_id}")
+            return MockSession(session_id, bundle_uri)
+        
         try:
-            from amplifier_foundation import load_bundle, PreparedBundle
-        except ImportError:
-            logger.warning("amplifier-foundation not available, using mock session")
-            return MockSession(session_id, bundle)
-        
-        # Load bundle (with caching)
-        if bundle not in self._bundle_cache:
-            prepared = await load_bundle(bundle)
-            self._bundle_cache[bundle] = prepared
-        else:
-            prepared = self._bundle_cache[bundle]
-        
-        # Create session
-        session_dir = self.data_dir / "sessions" / session_id
-        session_dir.mkdir(parents=True, exist_ok=True)
-        
-        session = await prepared.create_session(
-            session_id=session_id,
-            session_dir=session_dir,
-            config_overrides=config,
-        )
-        
-        await session.initialize()
-        return session
+            from amplifier_foundation import Bundle
+            
+            # Load base bundle
+            bundle = await self._load_bundle(bundle_uri)
+            
+            # Compose with provider bundle if specified
+            if provider_bundle:
+                provider = await self._load_bundle(provider_bundle)
+                bundle = bundle.compose(provider)
+            
+            # Compose with config overrides if specified
+            if config:
+                override_bundle = Bundle(
+                    name="config-override",
+                    version="1.0.0",
+                    session=config.get("session", {}),
+                    providers=config.get("providers", []),
+                    tools=config.get("tools", []),
+                    hooks=config.get("hooks", []),
+                )
+                bundle = bundle.compose(override_bundle)
+            
+            # Prepare bundle (downloads modules)
+            prepared = await self._prepare_bundle(bundle)
+            
+            # Create session
+            session = await prepared.create_session(
+                session_id=session_id,
+                parent_id=None,
+            )
+            
+            return session
+            
+        except Exception as e:
+            logger.error(f"Failed to create Amplifier session: {e}")
+            logger.info(f"Falling back to mock session for {session_id}")
+            return MockSession(session_id, bundle_uri)
     
     async def get_session(self, session_id: str) -> Any:
         """Get a session by ID.
@@ -238,8 +285,16 @@ class SessionManager:
         info = self._session_info[session_id]
         
         async with self._session_locks[session_id]:
-            # Add to context without triggering execution
-            await session.context.add_message(role=role, content=content)
+            # Try to get context from coordinator
+            try:
+                context = session.coordinator.get("context")
+                if context:
+                    await context.add_message({"role": role, "content": content})
+            except AttributeError:
+                # MockSession or different API
+                if hasattr(session, 'inject_context'):
+                    await session.inject_context(role, content)
+            
             info.last_activity = datetime.now()
     
     async def stop_session(self, session_id: str) -> None:
@@ -277,6 +332,7 @@ class MockSession:
         self.session_id = session_id
         self.bundle = bundle
         self.messages: list[dict[str, str]] = []
+        self._context: list[dict[str, str]] = []
     
     async def execute(self, prompt: str) -> str:
         self.messages.append({"role": "user", "content": prompt})
@@ -290,10 +346,8 @@ class MockSession:
             yield word + " "
             await asyncio.sleep(0.05)
     
+    async def inject_context(self, role: str, content: str) -> None:
+        self._context.append({"role": role, "content": content})
+    
     async def cleanup(self) -> None:
         pass
-    
-    class context:
-        @staticmethod
-        async def add_message(role: str, content: str) -> None:
-            pass

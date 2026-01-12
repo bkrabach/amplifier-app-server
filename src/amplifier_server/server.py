@@ -12,6 +12,7 @@ from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.notification_store import NotificationStore
 from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
+from amplifier_server.llm_scorer import LLMScorer
 from amplifier_server.api import (
     sessions_router,
     devices_router,
@@ -59,17 +60,23 @@ class AmplifierServer:
         self.device_manager = DeviceManager()
         self.notification_store = NotificationStore(self.data_dir / "notifications.db")
         
+        # Scoring configuration
+        self.scoring_config = ScoringConfig(
+            # Add your name/aliases for mention detection
+            user_aliases=["Brian", "bkrabach"],
+            # Add VIP senders (will be configurable via API)
+            vip_senders=[],
+        )
+        
         # Notification processor with default config
         self.notification_processor = NotificationProcessor(
             notification_store=self.notification_store,
             device_manager=self.device_manager,
-            config=ScoringConfig(
-                # Add your name/aliases for mention detection
-                user_aliases=["Brian", "bkrabach"],
-                # Add VIP senders (will be configurable via API)
-                vip_senders=[],
-            ),
+            config=self.scoring_config,
         )
+        
+        # LLM scorer (initialized lazily on first use)
+        self.llm_scorer: LLMScorer | None = None
         
         # FastAPI app
         self.app = self._create_app()
@@ -92,10 +99,15 @@ class AmplifierServer:
             # Start notification processor
             await self.notification_processor.start()
             
+            # Initialize LLM scorer if Amplifier is available
+            await self._init_llm_scorer()
+            
             yield
             
             logger.info("Amplifier Server shutting down")
             await self.notification_processor.stop()
+            if self.llm_scorer:
+                await self.llm_scorer.cleanup()
             await self.notification_store.close()
             await self.session_manager.shutdown()
         
@@ -172,6 +184,32 @@ class AmplifierServer:
         
         # Inject into WebSocket module
         websocket_api.inject_managers(self.session_manager, self.device_manager)
+    
+    async def _init_llm_scorer(self) -> None:
+        """Initialize the LLM scorer if Amplifier is available."""
+        try:
+            self.llm_scorer = LLMScorer(
+                session_manager=self.session_manager,
+                user_aliases=self.scoring_config.user_aliases,
+                vip_senders=self.scoring_config.vip_senders,
+            )
+            
+            # Try to initialize with foundation bundle
+            await self.llm_scorer.initialize()
+            
+            # Wire up to processor
+            self.notification_processor.set_llm_scorer(self.llm_scorer)
+            
+            # Don't enable by default - let user choose
+            # self.notification_processor.enable_llm_scoring(True)
+            
+            logger.info("LLM scorer initialized successfully")
+            logger.info("Use POST /notifications/llm/enable to activate AI scoring")
+            
+        except Exception as e:
+            logger.warning(f"LLM scorer not available: {e}")
+            logger.info("Running with heuristics-only scoring")
+            self.llm_scorer = None
     
     def _setup_device_handlers(self) -> None:
         """Set up handlers for device messages."""
