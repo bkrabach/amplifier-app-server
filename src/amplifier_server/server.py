@@ -201,18 +201,6 @@ class AmplifierServer:
             # Initialize with foundation bundle + Anthropic provider
             await self.llm_scorer.initialize()
             
-            # Verify the session has a provider mounted
-            session = self.session_manager._sessions.get("notification-scorer")
-            if session:
-                providers = getattr(session, "coordinator", None)
-                if providers:
-                    mounted_providers = providers.get_all("providers")
-                    if not mounted_providers:
-                        raise RuntimeError(
-                            "No providers mounted in scoring session. "
-                            "Check that ANTHROPIC_API_KEY is set."
-                        )
-            
             # Wire up to processor and enable by default
             self.notification_processor.set_llm_scorer(self.llm_scorer)
             self.notification_processor.enable_llm_scoring(True)
