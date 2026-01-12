@@ -186,7 +186,11 @@ class AmplifierServer:
         websocket_api.inject_managers(self.session_manager, self.device_manager)
     
     async def _init_llm_scorer(self) -> None:
-        """Initialize the LLM scorer if Amplifier is available."""
+        """Initialize the LLM scorer.
+        
+        Raises:
+            RuntimeError: If LLM scorer fails to initialize (critical failure)
+        """
         try:
             self.llm_scorer = LLMScorer(
                 session_manager=self.session_manager,
@@ -194,22 +198,31 @@ class AmplifierServer:
                 vip_senders=self.scoring_config.vip_senders,
             )
             
-            # Try to initialize with foundation bundle
+            # Initialize with foundation bundle + Anthropic provider
             await self.llm_scorer.initialize()
             
-            # Wire up to processor
+            # Verify the session has a provider mounted
+            session = self.session_manager._sessions.get("notification-scorer")
+            if session:
+                providers = getattr(session, "coordinator", None)
+                if providers:
+                    mounted_providers = providers.get_all("providers")
+                    if not mounted_providers:
+                        raise RuntimeError(
+                            "No providers mounted in scoring session. "
+                            "Check that ANTHROPIC_API_KEY is set."
+                        )
+            
+            # Wire up to processor and enable by default
             self.notification_processor.set_llm_scorer(self.llm_scorer)
+            self.notification_processor.enable_llm_scoring(True)
             
-            # Don't enable by default - let user choose
-            # self.notification_processor.enable_llm_scoring(True)
-            
-            logger.info("LLM scorer initialized successfully")
-            logger.info("Use POST /notifications/llm/enable to activate AI scoring")
+            logger.info("LLM scorer initialized and enabled")
             
         except Exception as e:
-            logger.warning(f"LLM scorer not available: {e}")
-            logger.info("Running with heuristics-only scoring")
-            self.llm_scorer = None
+            logger.error(f"CRITICAL: LLM scorer failed to initialize: {e}")
+            logger.error("Server cannot start without LLM scoring capability")
+            raise RuntimeError(f"LLM scorer initialization failed: {e}") from e
     
     def _setup_device_handlers(self) -> None:
         """Set up handlers for device messages."""

@@ -152,13 +152,15 @@ class SessionManager:
             bundle = await self._load_bundle(bundle_uri)
             
             # Build provider config if provider_bundle specified
-            # Provider modules are configured via the providers list, not bundle composition
+            # Provider modules are configured via the providers list with source URLs
             providers_config = config.get("providers", [])
             if provider_bundle and not providers_config:
                 # Default to Anthropic provider with Claude Sonnet (fast, cheap for scoring)
+                # Must specify source so the module can be downloaded/installed
                 providers_config = [
                     {
                         "module": "provider-anthropic",
+                        "source": "git+https://github.com/microsoft/amplifier-module-provider-anthropic@main",
                         "config": {
                             "model": "claude-sonnet-4-20250514",
                             "max_tokens": 500,  # Short responses for scoring
