@@ -255,6 +255,7 @@ class SessionManager:
                         "You are a notification classifier. "
                         "Respond ONLY with valid JSON, no markdown or explanation."
                     ),
+                    "orchestrator": "loop-basic",  # Required by session
                 },
                 providers=[
                     {
