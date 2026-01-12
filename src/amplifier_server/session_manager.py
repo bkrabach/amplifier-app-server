@@ -236,9 +236,9 @@ class SessionManager:
             return MockSession(session_id, bundle_uri)
 
     async def _create_minimal_amplifier_session(self, session_id: str) -> Any:
-        """Create a minimal Amplifier session for scoring.
+        """Create an optimized Amplifier session for scoring.
 
-        This bypasses the full bundle system for a lightweight session.
+        Uses foundation bundle but with Haiku for fast/cheap scoring.
         """
         if not self._amplifier_available:
             return MockSession(session_id, "minimal-scorer")
@@ -246,17 +246,20 @@ class SessionManager:
         try:
             from amplifier_foundation import Bundle
 
-            # Create minimal bundle with just provider, no tools/hooks
-            bundle = Bundle(
-                name="minimal-scorer",
+            # Use foundation bundle as base (has orchestrator, context, etc.)
+            bundle = await self._load_bundle(
+                "git+https://github.com/microsoft/amplifier-foundation@main"
+            )
+
+            # Override with Haiku provider and minimal system prompt
+            override = Bundle(
+                name="scorer-override",
                 version="1.0.0",
                 session={
                     "system_prompt": (
                         "You are a notification classifier. "
                         "Respond ONLY with valid JSON, no markdown or explanation."
                     ),
-                    "orchestrator": "loop-basic",
-                    "context": "context-simple",
                 },
                 providers=[
                     {
@@ -268,9 +271,8 @@ class SessionManager:
                         },
                     }
                 ],
-                tools=[],  # No tools needed for scoring
-                hooks=[],  # No hooks needed
             )
+            bundle = bundle.compose(override)
 
             # Prepare and create session
             prepared = await self._prepare_bundle(bundle)
@@ -283,7 +285,7 @@ class SessionManager:
 
         except Exception as e:
             logger.error(f"Failed to create minimal session: {e}")
-            raise  # Don't silently fall back - fail fast
+            raise
 
     async def get_session(self, session_id: str) -> Any:
         """Get a session by ID.
