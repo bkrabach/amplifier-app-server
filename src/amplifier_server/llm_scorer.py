@@ -110,11 +110,16 @@ class LLMScorer:
         self.vip_senders = vip_senders or []
         self._initialized = False
     
-    async def initialize(self, bundle_uri: str | None = None) -> None:
+    async def initialize(
+        self,
+        bundle_uri: str | None = None,
+        provider_bundle: str | None = None,
+    ) -> None:
         """Initialize the scoring session.
         
         Args:
             bundle_uri: Bundle to use for scoring (default: foundation)
+            provider_bundle: Provider bundle URI (default: provider-anthropic)
         """
         if self._initialized and self.session_id:
             return
@@ -123,10 +128,15 @@ class LLMScorer:
         if bundle_uri is None:
             bundle_uri = "git+https://github.com/microsoft/amplifier-foundation@main"
         
+        # Use Anthropic provider by default
+        if provider_bundle is None:
+            provider_bundle = "git+https://github.com/microsoft/amplifier-module-provider-anthropic@main"
+        
         try:
             self.session_id = await self.session_manager.create_session(
                 bundle=bundle_uri,
                 session_id="notification-scorer",
+                provider_bundle=provider_bundle,
                 config={
                     "session": {
                         "system_prompt": (

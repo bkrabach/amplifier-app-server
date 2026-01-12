@@ -151,22 +151,31 @@ class SessionManager:
             # Load base bundle
             bundle = await self._load_bundle(bundle_uri)
             
-            # Compose with provider bundle if specified
-            if provider_bundle:
-                provider = await self._load_bundle(provider_bundle)
-                bundle = bundle.compose(provider)
+            # Build provider config if provider_bundle specified
+            # Provider modules are configured via the providers list, not bundle composition
+            providers_config = config.get("providers", [])
+            if provider_bundle and not providers_config:
+                # Default to Anthropic provider with Claude Sonnet (fast, cheap for scoring)
+                providers_config = [
+                    {
+                        "module": "provider-anthropic",
+                        "config": {
+                            "model": "claude-sonnet-4-20250514",
+                            "max_tokens": 500,  # Short responses for scoring
+                        },
+                    }
+                ]
             
-            # Compose with config overrides if specified
-            if config:
-                override_bundle = Bundle(
-                    name="config-override",
-                    version="1.0.0",
-                    session=config.get("session", {}),
-                    providers=config.get("providers", []),
-                    tools=config.get("tools", []),
-                    hooks=config.get("hooks", []),
-                )
-                bundle = bundle.compose(override_bundle)
+            # Compose with config overrides
+            override_bundle = Bundle(
+                name="config-override",
+                version="1.0.0",
+                session=config.get("session", {}),
+                providers=providers_config,
+                tools=config.get("tools", []),
+                hooks=config.get("hooks", []),
+            )
+            bundle = bundle.compose(override_bundle)
             
             # Prepare bundle (downloads modules)
             prepared = await self._prepare_bundle(bundle)
