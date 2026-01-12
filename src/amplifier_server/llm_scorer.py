@@ -8,7 +8,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Default scoring prompt
-SCORING_PROMPT = """You are an attention controller helping a busy professional manage notifications.
+SCORING_PROMPT = """You are an attention controller helping a busy professional manage \
+notifications.
 
 Given a notification, decide if it warrants immediate attention or can wait.
 
@@ -43,7 +44,8 @@ NOTIFICATION:
 - Conversation: {conversation}
 
 Respond with ONLY a JSON object (no markdown, no explanation):
-{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1", "tag2"]}}
+{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", \
+"tags": ["tag1", "tag2"]}}
 
 Rules:
 - "push" = interrupt user now (score >= 0.6)
@@ -56,12 +58,13 @@ Rules:
 @dataclass
 class LLMScoringResult:
     """Result from LLM scoring."""
+
     score: float
     decision: str
     rationale: str
     tags: list[str]
     raw_response: str | None = None
-    
+
     @classmethod
     def from_json(cls, data: dict[str, Any], raw: str | None = None) -> "LLMScoringResult":
         return cls(
@@ -71,7 +74,7 @@ class LLMScoringResult:
             tags=data.get("tags", []),
             raw_response=raw,
         )
-    
+
     @classmethod
     def fallback(cls, reason: str) -> "LLMScoringResult":
         """Create a fallback result when LLM fails."""
@@ -85,10 +88,10 @@ class LLMScoringResult:
 
 class LLMScorer:
     """Scores notifications using an Amplifier session.
-    
+
     Uses LLM to evaluate notification importance with nuanced understanding.
     """
-    
+
     def __init__(
         self,
         session_manager: Any,
@@ -97,7 +100,7 @@ class LLMScorer:
         vip_senders: list[str] | None = None,
     ):
         """Initialize the LLM scorer.
-        
+
         Args:
             session_manager: SessionManager instance
             session_id: ID of session to use (will create if None)
@@ -109,69 +112,46 @@ class LLMScorer:
         self.user_aliases = user_aliases or []
         self.vip_senders = vip_senders or []
         self._initialized = False
-    
-    async def initialize(
-        self,
-        bundle_uri: str | None = None,
-        provider_bundle: str | None = None,
-    ) -> None:
-        """Initialize the scoring session.
-        
-        Args:
-            bundle_uri: Bundle to use for scoring (default: foundation)
-            provider_bundle: Provider bundle URI (default: provider-anthropic)
+
+    async def initialize(self) -> None:
+        """Initialize the scoring session with minimal config.
+
+        Uses a lightweight setup optimized for fast JSON scoring responses.
         """
         if self._initialized and self.session_id:
             return
-        
-        # Use default bundle if not specified
-        if bundle_uri is None:
-            bundle_uri = "git+https://github.com/microsoft/amplifier-foundation@main"
-        
-        # Use Anthropic provider by default
-        if provider_bundle is None:
-            provider_bundle = "git+https://github.com/microsoft/amplifier-module-provider-anthropic@main"
-        
+
         try:
-            self.session_id = await self.session_manager.create_session(
-                bundle=bundle_uri,
+            # Create a minimal session - just provider + orchestrator, no tools/hooks
+            self.session_id = await self.session_manager.create_minimal_session(
                 session_id="notification-scorer",
-                provider_bundle=provider_bundle,
-                config={
-                    "session": {
-                        "system_prompt": (
-                            "You are a notification scoring assistant. "
-                            "You evaluate notifications and return JSON scores. "
-                            "Always respond with valid JSON only."
-                        ),
-                    },
-                },
             )
             self._initialized = True
             logger.info(f"LLM scorer initialized with session: {self.session_id}")
         except Exception as e:
             logger.error(f"Failed to initialize LLM scorer: {e}")
             raise
-    
+
     async def score(
         self,
         notification: dict[str, Any],
         current_time: str | None = None,
     ) -> LLMScoringResult:
         """Score a notification using the LLM.
-        
+
         Args:
             notification: Notification data dict
             current_time: Current time string (for context)
-            
+
         Returns:
             LLMScoringResult with score, decision, and rationale
         """
         if not self._initialized or not self.session_id:
             return LLMScoringResult.fallback("Scorer not initialized")
-        
+
         # Build the prompt
         from datetime import datetime
+
         prompt = SCORING_PROMPT.format(
             user_aliases=", ".join(self.user_aliases) or "not specified",
             vip_senders=", ".join(self.vip_senders) or "none configured",
@@ -182,27 +162,27 @@ class LLMScorer:
             body=notification.get("body", "")[:500],  # Limit body length
             conversation=notification.get("conversation_hint", ""),
         )
-        
+
         try:
             # Execute in session
             response = await self.session_manager.execute(
                 session_id=self.session_id,
                 prompt=prompt,
             )
-            
+
             # Parse JSON response
             result = self._parse_response(response)
             return result
-            
+
         except Exception as e:
             logger.error(f"LLM scoring failed: {e}")
             return LLMScoringResult.fallback(str(e))
-    
+
     def _parse_response(self, response: str) -> LLMScoringResult:
         """Parse LLM response into scoring result."""
         # Try to extract JSON from response
         response = response.strip()
-        
+
         # Handle markdown code blocks
         if response.startswith("```"):
             lines = response.split("\n")
@@ -216,7 +196,7 @@ class LLMScorer:
                 if in_block:
                     json_lines.append(line)
             response = "\n".join(json_lines)
-        
+
         # Try to find JSON object
         start = response.find("{")
         end = response.rfind("}") + 1
@@ -227,10 +207,10 @@ class LLMScorer:
                 return LLMScoringResult.from_json(data, response)
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse JSON: {e}")
-        
+
         # Fallback if parsing fails
         return LLMScoringResult.fallback(f"Could not parse response: {response[:100]}")
-    
+
     def update_config(
         self,
         user_aliases: list[str] | None = None,
@@ -241,7 +221,7 @@ class LLMScorer:
             self.user_aliases = user_aliases
         if vip_senders is not None:
             self.vip_senders = vip_senders
-    
+
     async def cleanup(self) -> None:
         """Cleanup the scoring session."""
         if self.session_id:
