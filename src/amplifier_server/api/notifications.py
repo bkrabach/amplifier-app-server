@@ -85,8 +85,8 @@ async def ingest_notification(
         f"  title: {repr(request.title)}\n"
         f"  body: {repr(request.body)}\n"
         f"  sender: {repr(request.sender)}\n"
-        f"  conversation: {repr(request.conversation)}\n"
-        f"  raw_payload: {request.raw_payload}"
+        f"  conversation_hint: {repr(request.conversation_hint)}\n"
+        f"  raw: {request.raw}"
     )
 
     # Store the notification
