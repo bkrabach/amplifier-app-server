@@ -194,8 +194,7 @@ class AmplifierServer:
         try:
             self.llm_scorer = LLMScorer(
                 session_manager=self.session_manager,
-                user_aliases=self.scoring_config.user_aliases,
-                vip_senders=self.scoring_config.vip_senders,
+                rules_path=self.data_dir / "config" / "attention-rules.md",
             )
             
             # Initialize with foundation bundle + Anthropic provider
