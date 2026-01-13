@@ -3,15 +3,21 @@
 import json
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default scoring prompt
+# Default path for attention rules config
+DEFAULT_RULES_PATH = Path(__file__).parent.parent.parent / "config" / "attention-rules.md"
+
+# Default scoring prompt with custom rules placeholder
 SCORING_PROMPT = """You are an attention controller helping a busy professional manage \
 notifications.
 
 Given a notification, decide if it warrants immediate attention or can wait.
+
+BASELINE PRIORITY GUIDELINES:
 
 PRIORITIZE (score 0.7-1.0):
 - Direct mentions of the user by name
@@ -31,9 +37,9 @@ LOW PRIORITY (score 0.0-0.3):
 - System notifications (updates, sync status)
 - Marketing/promotional content
 
+{custom_rules}
+
 CONTEXT:
-- User's name/aliases: {user_aliases}
-- VIP senders: {vip_senders}
 - Current time: {current_time}
 
 NOTIFICATION:
@@ -52,6 +58,7 @@ Rules:
 - "summarize" = include in next digest (score 0.3-0.6)  
 - "suppress" = don't bother user (score < 0.3)
 - If content seems truncated, be conservative unless VIP or deadline signals are clear
+- Custom rules above OVERRIDE baseline guidelines when they conflict
 """
 
 
@@ -90,28 +97,55 @@ class LLMScorer:
     """Scores notifications using an Amplifier session.
 
     Uses LLM to evaluate notification importance with nuanced understanding.
+    Supports custom rules via markdown config file.
     """
 
     def __init__(
         self,
         session_manager: Any,
         session_id: str | None = None,
-        user_aliases: list[str] | None = None,
-        vip_senders: list[str] | None = None,
+        rules_path: Path | str | None = None,
     ):
         """Initialize the LLM scorer.
 
         Args:
             session_manager: SessionManager instance
             session_id: ID of session to use (will create if None)
-            user_aliases: User's name/aliases for mention detection
-            vip_senders: List of VIP senders
+            rules_path: Path to custom rules markdown file (optional)
         """
         self.session_manager = session_manager
         self.session_id = session_id
-        self.user_aliases = user_aliases or []
-        self.vip_senders = vip_senders or []
+        self.rules_path = Path(rules_path) if rules_path else DEFAULT_RULES_PATH
+        self._custom_rules: str = ""
         self._initialized = False
+
+        # Load rules on init
+        self._load_rules()
+
+    def _load_rules(self) -> None:
+        """Load custom rules from the config file.
+
+        Rules are stored in a markdown file and injected into the scoring prompt.
+        If the file doesn't exist or can't be read, scoring continues with
+        baseline rules only.
+        """
+        if self.rules_path and self.rules_path.exists():
+            try:
+                self._custom_rules = self.rules_path.read_text(encoding="utf-8")
+                logger.info(f"Loaded attention rules from {self.rules_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load rules from {self.rules_path}: {e}")
+                self._custom_rules = ""
+        else:
+            logger.info(f"No rules file at {self.rules_path}, using baseline rules only")
+            self._custom_rules = ""
+
+    def reload_rules(self) -> None:
+        """Reload rules from the config file.
+
+        Call this to pick up changes to the rules file without restarting.
+        """
+        self._load_rules()
 
     async def initialize(self) -> None:
         """Initialize the scoring session with minimal config.
@@ -149,13 +183,19 @@ class LLMScorer:
         if not self._initialized or not self.session_id:
             return LLMScoringResult.fallback("Scorer not initialized")
 
-        # Build the prompt
+        # Build the prompt with custom rules
         from datetime import datetime
 
+        # Format custom rules section
+        rules_section = ""
+        if self._custom_rules:
+            rules_section = (
+                f"USER-SPECIFIC RULES (take precedence over baseline):\n\n{self._custom_rules}"
+            )
+
         prompt = SCORING_PROMPT.format(
-            user_aliases=", ".join(self.user_aliases) or "not specified",
-            vip_senders=", ".join(self.vip_senders) or "none configured",
-            current_time=current_time or datetime.now().strftime("%Y-%m-%d %H:%M"),
+            custom_rules=rules_section,
+            current_time=current_time or datetime.now().strftime("%Y-%m-%d %H:%M %A"),
             app_name=notification.get("app_name") or notification.get("app_id", "Unknown"),
             sender=notification.get("sender", "Unknown"),
             title=notification.get("title", ""),
@@ -172,11 +212,30 @@ class LLMScorer:
 
             # Parse JSON response
             result = self._parse_response(response)
+
+            # Clear context after scoring to keep it stateless
+            # Each scoring should be independent with no accumulated history
+            await self._reset_context()
+
             return result
 
         except Exception as e:
             logger.error(f"LLM scoring failed: {e}")
+            # Still try to clear context on error to prevent accumulation
+            await self._reset_context()
             return LLMScoringResult.fallback(str(e))
+
+    async def _reset_context(self) -> None:
+        """Reset session context to keep scoring stateless.
+
+        Each notification should be scored independently without
+        context from previous notifications affecting the decision.
+        """
+        if self.session_id:
+            try:
+                await self.session_manager.clear_context(self.session_id)
+            except Exception as e:
+                logger.warning(f"Failed to clear context: {e}")
 
     def _parse_response(self, response: str) -> LLMScoringResult:
         """Parse LLM response into scoring result."""
@@ -213,14 +272,16 @@ class LLMScorer:
 
     def update_config(
         self,
-        user_aliases: list[str] | None = None,
-        vip_senders: list[str] | None = None,
+        rules_path: Path | str | None = None,
     ) -> None:
-        """Update scorer configuration."""
-        if user_aliases is not None:
-            self.user_aliases = user_aliases
-        if vip_senders is not None:
-            self.vip_senders = vip_senders
+        """Update scorer configuration.
+
+        Args:
+            rules_path: New path to rules file (optional, reloads current if None)
+        """
+        if rules_path is not None:
+            self.rules_path = Path(rules_path)
+        self._load_rules()
 
     async def cleanup(self) -> None:
         """Cleanup the scoring session."""

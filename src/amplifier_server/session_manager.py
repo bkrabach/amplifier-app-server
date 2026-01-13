@@ -400,6 +400,39 @@ class SessionManager:
 
             info.last_activity = datetime.now()
 
+    async def clear_context(self, session_id: str) -> None:
+        """Clear all conversation context from a session.
+
+        Resets the session to a clean state, keeping only the system prompt.
+        Useful for stateless operations like scoring where each request
+        should be independent.
+
+        Args:
+            session_id: The session ID
+        """
+        session = await self.get_session(session_id)
+
+        async with self._session_locks[session_id]:
+            try:
+                # Try to get context from coordinator and clear it
+                context = session.coordinator.get("context")
+                if context:
+                    # Clear messages but preserve system prompt
+                    if hasattr(context, "clear"):
+                        await context.clear()
+                    elif hasattr(context, "messages"):
+                        # Direct access to messages list
+                        context.messages.clear()
+                    logger.debug(f"Cleared context for session {session_id}")
+            except AttributeError:
+                # MockSession or different API
+                if hasattr(session, "clear_context"):
+                    await session.clear_context()
+                elif hasattr(session, "messages"):
+                    session.messages.clear()
+                elif hasattr(session, "_context"):
+                    session._context.clear()
+
     async def stop_session(self, session_id: str) -> None:
         """Stop and cleanup a session."""
         if session_id not in self._sessions:
