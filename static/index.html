@@ -71,6 +71,9 @@
         <button id="send-btn">Send</button>
     </div>
     
+    <!-- Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    
     <script>
         const chat = document.getElementById('chat');
         const input = document.getElementById('message-input');
@@ -95,14 +98,21 @@
             if (data.error) {
                 addMessage(`Error: ${data.error}`, 'system');
             } else if (data.response) {
-                addMessage(data.response, 'assistant');
+                addMessage(data.response, 'assistant', true);
             }
         };
         
-        function addMessage(text, role) {
+        function addMessage(text, role, isMarkdown = false) {
             const msg = document.createElement('div');
             msg.className = `message ${role}`;
-            msg.textContent = text;
+            
+            if (isMarkdown && role === 'assistant') {
+                // Render markdown for assistant messages
+                msg.innerHTML = marked.parse(text);
+            } else {
+                msg.textContent = text;
+            }
+            
             chat.appendChild(msg);
             chat.scrollTop = chat.scrollHeight;
         }
