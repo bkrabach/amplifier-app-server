@@ -11,10 +11,15 @@ logger = logging.getLogger(__name__)
 # Default path for attention rules config
 DEFAULT_RULES_PATH = Path(__file__).parent.parent.parent / "config" / "attention-rules.md"
 
-# Scoring framework prompt - attention-rules.md provides the ACTUAL logic
+# Scoring framework prompt - LLM reads rules from file each time
 SCORING_FRAMEWORK = """You are an autonomous attention controller.
 
-Your job: Score notifications and autonomously manage your own configuration.
+SETUP:
+1. Read your rules file: {rules_file}
+2. Check the current time: {current_time}
+3. If the rules file has time-based modes and the current time means you should switch modes, 
+   UPDATE the file using write_file
+4. Apply the current rules and score the notification
 
 SCORING OUTPUT (required JSON format):
 {{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1"]}}
@@ -24,15 +29,6 @@ DECISION THRESHOLDS:
 - "summarize" = include in next digest (score 0.3-0.6)
 - "suppress" = don't bother user (score < 0.3)
 
-{custom_rules}
-
-AUTONOMOUS CONFIG MANAGEMENT:
-You have write access to your rules file. If time-based rules need updating (e.g., switching modes 
-at a specific time), use write_file to update the config BEFORE scoring the notification.
-
-CURRENT CONTEXT:
-- Time: {current_time}
-
 NOTIFICATION TO SCORE:
 - App: {app_name}
 - From: {sender}
@@ -40,7 +36,7 @@ NOTIFICATION TO SCORE:
 - Body: {body}
 - Conversation: {conversation}
 
-Respond with ONLY the JSON object.
+Start by reading the rules file, then respond with ONLY the JSON scoring object.
 """
 
 
@@ -153,24 +149,12 @@ class LLMScorer:
         if not self._initialized or not self.session_id:
             return LLMScoringResult.fallback("Scorer not initialized")
 
-        # Reload rules before each score (picks up file changes)
-        self._load_rules()
-
-        # Build the prompt with custom rules
+        # Build the prompt - LLM will read the file itself
         from datetime import datetime
 
-        # Format custom rules section - these ARE the rules
-        rules_section = ""
-        if self._custom_rules:
-            rules_section = (
-                f"YOUR SCORING RULES (complete logic, not examples):\\n\\n{self._custom_rules}"
-            )
-        else:
-            rules_section = "No custom rules configured - use baseline guidelines only."
-
         prompt = SCORING_FRAMEWORK.format(
-            custom_rules=rules_section,
-            current_time=current_time or datetime.now().strftime("%Y-%m-%d %H:%M %A"),
+            rules_file=str(self.rules_path),
+            current_time=current_time or datetime.now().strftime("%Y-%m-%d %I:%M %p %A"),
             app_name=notification.get("app_name") or notification.get("app_id", "Unknown"),
             sender=notification.get("sender", "Unknown"),
             title=notification.get("title", ""),
