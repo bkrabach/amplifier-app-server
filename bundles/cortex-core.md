@@ -5,19 +5,16 @@ bundle:
   description: Cortex Core - Main orchestrator and administrative interface
 
 includes:
-  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@1aaaf5b
 
 session:
   orchestrator:
     module: loop-streaming
-    source: git+https://github.com/microsoft/amplifier-foundation@main
   context:
     module: context-simple
-    source: git+https://github.com/microsoft/amplifier-foundation@main
   
 providers:
   - module: provider-anthropic
-    source: git+https://github.com/microsoft/amplifier-foundation@main
     config:
       model: claude-sonnet-4-5
       
