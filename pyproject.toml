@@ -11,9 +11,9 @@ authors = [
 keywords = ["amplifier", "ai", "agent", "server", "api"]
 
 dependencies = [
-    # Amplifier core
-    "amplifier-core @ git+https://github.com/microsoft/amplifier-core",
-    "amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation",
+    # Amplifier core - pinned to compatible versions with dual-parameter protocol
+    "amplifier-core @ git+https://github.com/microsoft/amplifier-core@b0eb96c",
+    "amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@1aaaf5b",
     
     # Web framework
     "fastapi>=0.109.0",
