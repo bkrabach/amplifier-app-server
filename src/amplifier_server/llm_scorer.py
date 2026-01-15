@@ -11,32 +11,33 @@ logger = logging.getLogger(__name__)
 # Default path for attention rules config
 DEFAULT_RULES_PATH = Path(__file__).parent.parent.parent / "config" / "attention-rules.md"
 
-# Scoring framework prompt - LLM reads rules from file each time
+# Scoring framework prompt with autonomous config management
 SCORING_FRAMEWORK = """You are an autonomous attention controller.
 
-SETUP:
-1. Read your rules file: {rules_file}
-2. Check the current time: {current_time}
-3. If the rules file has time-based modes and the current time means you should switch modes, 
-   UPDATE the file using write_file
-4. Apply the current rules and score the notification
+YOUR RULES (loaded from {rules_file}):
+{custom_rules}
 
-SCORING OUTPUT (required JSON format):
-{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1"]}}
+CURRENT CONTEXT:
+- Time: {current_time}
 
-DECISION THRESHOLDS:
-- "push" = interrupt user now (score >= 0.6)
-- "summarize" = include in next digest (score 0.3-0.6)
-- "suppress" = don't bother user (score < 0.3)
+AUTONOMOUS BEHAVIOR:
+If your rules have time-based modes (e.g., "Active until 12:50 PM") and the current time 
+indicates you should switch modes, use write_file to update {rules_file} BEFORE scoring.
+
+Then score this notification according to the active rules.
 
 NOTIFICATION TO SCORE:
 - App: {app_name}
 - From: {sender}
 - Title: {title}
 - Body: {body}
-- Conversation: {conversation}
 
-Start by reading the rules file, then respond with ONLY the JSON scoring object.
+SCORING OUTPUT (required JSON):
+{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1"]}}
+
+Thresholds: push >= 0.6, summarize 0.3-0.6, suppress < 0.3
+
+Respond with ONLY the JSON object.
 """
 
 
@@ -149,11 +150,14 @@ class LLMScorer:
         if not self._initialized or not self.session_id:
             return LLMScoringResult.fallback("Scorer not initialized")
 
-        # Build the prompt - LLM will read the file itself
+        # Build the prompt - reload rules each time
         from datetime import datetime
 
+        self._load_rules()  # Reload from disk
+        
         prompt = SCORING_FRAMEWORK.format(
             rules_file=str(self.rules_path),
+            custom_rules=self._custom_rules or "No rules loaded",
             current_time=current_time or datetime.now().strftime("%Y-%m-%d %I:%M %p %A"),
             app_name=notification.get("app_name") or notification.get("app_id", "Unknown"),
             sender=notification.get("sender", "Unknown"),
