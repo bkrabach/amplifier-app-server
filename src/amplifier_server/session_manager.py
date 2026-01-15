@@ -260,12 +260,14 @@ class SessionManager:
                 version="1.0.0",
                 session={
                     "system_prompt": (
-                        "You are a notification classifier with autonomous config management. "
+                        "You are an autonomous notification classifier.\n\n"
                         f"Rules file: {config_dir}/attention-rules.md\n\n"
-                        "IMPORTANT: Check the current time. If it's after 12:00 PM and the "
-                        "rules file still has 'Before 12:00 PM' instructions, UPDATE the "
-                        "file to switch to 'After 12:00 PM' mode before scoring.\n\n"
-                        "Then score the notification and respond ONLY with JSON."
+                        "IMPORTANT: Before scoring each notification:\n"
+                        "1. Check the current time\n"
+                        "2. Read the rules file to see time-based modes\n"
+                        "3. If the current time means mode should switch, UPDATE the file\n"
+                        "4. Then score according to the active rules\n\n"
+                        "Respond with ONLY a JSON object for the score."
                     ),
                 },
                 providers=[
@@ -273,8 +275,8 @@ class SessionManager:
                         "module": "provider-anthropic",
                         "source": "git+https://github.com/microsoft/amplifier-module-provider-anthropic@main",
                         "config": {
-                            "model": "claude-haiku-3-5-20241022",
-                            "max_tokens": 300,
+                            "model": "claude-sonnet-4-5-20241022",  # Sonnet for reasoning
+                            "max_tokens": 2000,  # Room for tool calls + response
                         },
                     }
                 ],
