@@ -23,7 +23,7 @@ tools:
   - module: tool-filesystem
     config:
       allowed_write_paths:
-        - "{data_dir}/config"
+        - "/home/bkrabach/.amplifier-server/config"
   - module: tool-bash
   - module: tool-web
   - module: tool-task
