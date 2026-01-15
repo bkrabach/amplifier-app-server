@@ -11,54 +11,36 @@ logger = logging.getLogger(__name__)
 # Default path for attention rules config
 DEFAULT_RULES_PATH = Path(__file__).parent.parent.parent / "config" / "attention-rules.md"
 
-# Default scoring prompt with custom rules placeholder
-SCORING_PROMPT = """You are an attention controller helping a busy professional manage \
-notifications.
+# Scoring framework prompt - attention-rules.md provides the ACTUAL logic
+SCORING_FRAMEWORK = """You are an autonomous attention controller.
 
-Given a notification, decide if it warrants immediate attention or can wait.
+Your job: Score notifications and autonomously manage your own configuration.
 
-BASELINE PRIORITY GUIDELINES:
+SCORING OUTPUT (required JSON format):
+{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1"]}}
 
-PRIORITIZE (score 0.7-1.0):
-- Direct mentions of the user by name
-- Deadlines, time-sensitive requests ("today", "ASAP", "urgent")
-- Decisions being made that need input
-- VIP senders (important colleagues, executives)
-- Blocking issues or outages
-
-MEDIUM PRIORITY (score 0.4-0.6):
-- Work-related discussions that may need attention soon
-- Meeting changes or calendar updates
-- Questions that might be for the user
-
-LOW PRIORITY (score 0.0-0.3):
-- General chat/banter
-- FYI messages with no action needed
-- System notifications (updates, sync status)
-- Marketing/promotional content
+DECISION THRESHOLDS:
+- "push" = interrupt user now (score >= 0.6)
+- "summarize" = include in next digest (score 0.3-0.6)
+- "suppress" = don't bother user (score < 0.3)
 
 {custom_rules}
 
-CONTEXT:
-- Current time: {current_time}
+AUTONOMOUS CONFIG MANAGEMENT:
+You have write access to your rules file. If time-based rules need updating (e.g., switching modes 
+at a specific time), use write_file to update the config BEFORE scoring the notification.
 
-NOTIFICATION:
+CURRENT CONTEXT:
+- Time: {current_time}
+
+NOTIFICATION TO SCORE:
 - App: {app_name}
 - From: {sender}
 - Title: {title}
 - Body: {body}
 - Conversation: {conversation}
 
-Respond with ONLY a JSON object (no markdown, no explanation):
-{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", \
-"tags": ["tag1", "tag2"]}}
-
-Rules:
-- "push" = interrupt user now (score >= 0.6)
-- "summarize" = include in next digest (score 0.3-0.6)  
-- "suppress" = don't bother user (score < 0.3)
-- If content seems truncated, be conservative unless VIP or deadline signals are clear
-- Custom rules above OVERRIDE baseline guidelines when they conflict
+Respond with ONLY the JSON object.
 """
 
 
@@ -123,29 +105,17 @@ class LLMScorer:
         self._load_rules()
 
     def _load_rules(self) -> None:
-        """Load custom rules from the config file.
-
-        Rules are stored in a markdown file and injected into the scoring prompt.
-        If the file doesn't exist or can't be read, scoring continues with
-        baseline rules only.
-        """
-        if self.rules_path and self.rules_path.exists():
-            try:
-                self._custom_rules = self.rules_path.read_text(encoding="utf-8")
-                logger.info(f"Loaded attention rules from {self.rules_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load rules from {self.rules_path}: {e}")
+        """Load custom rules from markdown file."""
+        try:
+            if self.rules_path.exists():
+                self._custom_rules = self.rules_path.read_text()
+                logger.info(f"Loaded {len(self._custom_rules)} chars of rules from {self.rules_path}")
+            else:
+                logger.warning(f"Rules file not found: {self.rules_path}")
                 self._custom_rules = ""
-        else:
-            logger.info(f"No rules file at {self.rules_path}, using baseline rules only")
+        except Exception as e:
+            logger.error(f"Failed to load rules: {e}")
             self._custom_rules = ""
-
-    def reload_rules(self) -> None:
-        """Reload rules from the config file.
-
-        Call this to pick up changes to the rules file without restarting.
-        """
-        self._load_rules()
 
     async def initialize(self) -> None:
         """Initialize the scoring session with minimal config.
@@ -183,17 +153,22 @@ class LLMScorer:
         if not self._initialized or not self.session_id:
             return LLMScoringResult.fallback("Scorer not initialized")
 
+        # Reload rules before each score (picks up file changes)
+        self._load_rules()
+
         # Build the prompt with custom rules
         from datetime import datetime
 
-        # Format custom rules section
+        # Format custom rules section - these ARE the rules
         rules_section = ""
         if self._custom_rules:
             rules_section = (
-                f"USER-SPECIFIC RULES (take precedence over baseline):\n\n{self._custom_rules}"
+                f"YOUR SCORING RULES (complete logic, not examples):\\n\\n{self._custom_rules}"
             )
+        else:
+            rules_section = "No custom rules configured - use baseline guidelines only."
 
-        prompt = SCORING_PROMPT.format(
+        prompt = SCORING_FRAMEWORK.format(
             custom_rules=rules_section,
             current_time=current_time or datetime.now().strftime("%Y-%m-%d %H:%M %A"),
             app_name=notification.get("app_name") or notification.get("app_id", "Unknown"),
@@ -214,28 +189,21 @@ class LLMScorer:
             result = self._parse_response(response)
 
             # Clear context after scoring to keep it stateless
-            # Each scoring should be independent with no accumulated history
             await self._reset_context()
 
             return result
 
         except Exception as e:
             logger.error(f"LLM scoring failed: {e}")
-            # Still try to clear context on error to prevent accumulation
-            await self._reset_context()
             return LLMScoringResult.fallback(str(e))
 
     async def _reset_context(self) -> None:
-        """Reset session context to keep scoring stateless.
-
-        Each notification should be scored independently without
-        context from previous notifications affecting the decision.
-        """
-        if self.session_id:
-            try:
-                await self.session_manager.clear_context(self.session_id)
-            except Exception as e:
-                logger.warning(f"Failed to clear context: {e}")
+        """Reset session context to keep scoring stateless."""
+        try:
+            await self.session_manager.clear_context(self.session_id)
+            logger.debug("Context cleared")
+        except Exception as e:
+            logger.warning(f"Failed to clear context: {e}")
 
     def _parse_response(self, response: str) -> LLMScoringResult:
         """Parse LLM response into scoring result."""

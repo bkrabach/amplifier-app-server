@@ -55,7 +55,7 @@ When in focus mode:
 
 ## Current Context (Time-Sensitive Instructions)
 
-**Before 12:00 PM (noon):**
+**Active until 12:50 PM:**
 - **HIGH ALERT for bugs** - Push for ANY bug report, no matter how minor
 - Includes: bug mentions, errors, crashes, exceptions, test failures
 - Rationale: In meetings, need to be aware of all issues being reported
@@ -66,7 +66,7 @@ When in focus mode:
   - VIP requests
   - Family messages
 
-**After 12:00 PM (noon):**
+**After 12:50 PM:**
 - **Standard bug filtering** - Only push for IMPACTFUL bugs
 - Push criteria: P0/P1, production issues, user-impacting crashes
 - Summarize: Minor bugs, test failures, dev environment issues
