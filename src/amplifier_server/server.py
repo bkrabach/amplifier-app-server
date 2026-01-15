@@ -233,10 +233,25 @@ class AmplifierServer:
             # Load cortex-core bundle
             bundle_path = Path(__file__).parent.parent.parent / "bundles" / "cortex-core.md"
 
+            # Pass config with expanded data_dir for file access
+            config = {
+                "tools": [
+                    {
+                        "module": "tool-filesystem",
+                        "config": {
+                            "allowed_write_paths": [
+                                str(self.data_dir / "config"),
+                            ],
+                        },
+                    }
+                ],
+            }
+
             # Create long-running Core session
             core_id = await self.session_manager.create_session(
                 bundle=str(bundle_path),
                 session_id="cortex-core",
+                config=config,
             )
 
             logger.info(f"Cortex Core initialized: {core_id}")
