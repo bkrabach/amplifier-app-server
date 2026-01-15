@@ -251,14 +251,21 @@ class SessionManager:
                 "git+https://github.com/microsoft/amplifier-foundation@main"
             )
 
-            # Override with Haiku provider and minimal system prompt
+            # Get config directory path for file access
+            config_dir = str(self.data_dir / "config")
+
+            # Override with Haiku provider, minimal system prompt, and file access
             override = Bundle(
                 name="scorer-override",
                 version="1.0.0",
                 session={
                     "system_prompt": (
-                        "You are a notification classifier. "
-                        "Respond ONLY with valid JSON, no markdown or explanation."
+                        "You are a notification classifier with autonomous config management. "
+                        f"Rules file: {config_dir}/attention-rules.md\n\n"
+                        "IMPORTANT: Check the current time. If it's after 12:00 PM and the "
+                        "rules file still has 'Before 12:00 PM' instructions, UPDATE the "
+                        "file to switch to 'After 12:00 PM' mode before scoring.\n\n"
+                        "Then score the notification and respond ONLY with JSON."
                     ),
                 },
                 providers=[
@@ -268,6 +275,14 @@ class SessionManager:
                         "config": {
                             "model": "claude-haiku-3-5-20241022",
                             "max_tokens": 300,
+                        },
+                    }
+                ],
+                tools=[
+                    {
+                        "module": "tool-filesystem",
+                        "config": {
+                            "allowed_write_paths": [config_dir],
                         },
                     }
                 ],

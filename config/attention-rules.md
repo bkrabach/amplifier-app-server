@@ -49,3 +49,25 @@ When in focus mode:
 - "deadline", "due today", "EOD"
 - "blocking", "outage", "down"
 - "decision needed", "approval required"
+- "bug", "crash", "error", "exception", "failure"
+- "regression", "broken", "not working"
+- "critical issue", "P0", "P1"
+
+## Current Context (Time-Sensitive Instructions)
+
+**Before 12:00 PM (noon):**
+- **HIGH ALERT for bugs** - Push for ANY bug report, no matter how minor
+- Includes: bug mentions, errors, crashes, exceptions, test failures
+- Rationale: In meetings, need to be aware of all issues being reported
+- Push immediately for:
+  - ANY bug reports or crash notifications (even minor)
+  - P0/P1 issues
+  - Production errors or regressions
+  - VIP requests
+  - Family messages
+
+**After 12:00 PM (noon):**
+- **Standard bug filtering** - Only push for IMPACTFUL bugs
+- Push criteria: P0/P1, production issues, user-impacting crashes
+- Summarize: Minor bugs, test failures, dev environment issues
+- Rationale: Post-meetings, filter for what actually needs immediate attention
