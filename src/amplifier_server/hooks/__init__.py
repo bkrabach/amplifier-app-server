@@ -9,15 +9,15 @@ This module provides the infrastructure for loading and managing these hooks.
 """
 
 from amplifier_server.hooks.base import (
-    ServerHook,
+    HookRegistry,
     InputHook,
     OutputHook,
-    HookRegistry,
+    ServerHook,
 )
 
 __all__ = [
     "ServerHook",
-    "InputHook", 
+    "InputHook",
     "OutputHook",
     "HookRegistry",
 ]

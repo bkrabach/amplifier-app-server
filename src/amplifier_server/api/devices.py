@@ -4,8 +4,8 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from amplifier_server.models import DeviceInfo
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.models import DeviceInfo
 
 logger = logging.getLogger(__name__)
 

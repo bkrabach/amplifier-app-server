@@ -2,9 +2,8 @@
 
 import logging
 import time
-from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from amplifier_server.models import (
     CreateSessionRequest,
@@ -39,13 +38,13 @@ async def create_session(
             session_id=request.session_id,
             config=request.config,
         )
-        
+
         return CreateSessionResponse(
             session_id=session_id,
             status=SessionStatus.READY,
             message=f"Session created with bundle: {request.bundle}",
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -82,22 +81,22 @@ async def execute(
     """Execute a prompt in a session."""
     try:
         start_time = time.time()
-        
+
         response = await manager.execute(
             session_id=session_id,
             prompt=request.prompt,
             stream=False,  # Streaming handled via WebSocket
         )
-        
+
         duration_ms = int((time.time() - start_time) * 1000)
-        
+
         return ExecuteResponse(
             session_id=session_id,
             response=response,
             tool_calls=[],  # TODO: Extract from response
             duration_ms=duration_ms,
         )
-        
+
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
     except Exception as e:
@@ -113,7 +112,7 @@ async def inject_context(
     manager: SessionManager = Depends(get_session_manager),
 ) -> dict[str, str]:
     """Inject context into a session without executing.
-    
+
     Useful for feeding notifications, events, etc. into the session
     without triggering an immediate response.
     """
@@ -124,7 +123,7 @@ async def inject_context(
             role=role,
         )
         return {"status": "injected"}
-        
+
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
     except Exception as e:
@@ -141,7 +140,7 @@ async def stop_session(
     try:
         await manager.stop_session(session_id)
         return {"status": "stopped", "session_id": session_id}
-        
+
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
     except Exception as e:

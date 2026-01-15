@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 class SessionStatus(str, Enum):
     """Session lifecycle states."""
-    
+
     INITIALIZING = "initializing"
     READY = "ready"
     EXECUTING = "executing"
@@ -19,7 +19,7 @@ class SessionStatus(str, Enum):
 
 class SessionInfo(BaseModel):
     """Information about a session."""
-    
+
     session_id: str
     bundle: str
     status: SessionStatus
@@ -31,23 +31,17 @@ class SessionInfo(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     """Request to create a new session."""
-    
-    bundle: str = Field(
-        description="Bundle name or path (e.g., 'foundation', 'git+https://...')"
-    )
-    session_id: str | None = Field(
-        default=None,
-        description="Optional custom session ID"
-    )
+
+    bundle: str = Field(description="Bundle name or path (e.g., 'foundation', 'git+https://...')")
+    session_id: str | None = Field(default=None, description="Optional custom session ID")
     config: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Session configuration overrides"
+        default_factory=dict, description="Session configuration overrides"
     )
 
 
 class CreateSessionResponse(BaseModel):
     """Response from session creation."""
-    
+
     session_id: str
     status: SessionStatus
     message: str
@@ -55,17 +49,14 @@ class CreateSessionResponse(BaseModel):
 
 class ExecuteRequest(BaseModel):
     """Request to execute a prompt in a session."""
-    
+
     prompt: str = Field(description="User message to process")
-    stream: bool = Field(
-        default=False,
-        description="Whether to stream the response"
-    )
+    stream: bool = Field(default=False, description="Whether to stream the response")
 
 
 class ExecuteResponse(BaseModel):
     """Response from execution."""
-    
+
     session_id: str
     response: str
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
@@ -74,7 +65,7 @@ class ExecuteResponse(BaseModel):
 
 class IngestNotificationRequest(BaseModel):
     """Request to ingest a notification from a client device."""
-    
+
     device_id: str = Field(description="Identifier for the source device")
     app_id: str = Field(description="Source application ID")
     app_name: str | None = Field(default=None, description="Human-readable app name")
@@ -89,10 +80,9 @@ class IngestNotificationRequest(BaseModel):
 
 class PushNotificationRequest(BaseModel):
     """Request to push a notification to a client device."""
-    
+
     device_id: str | None = Field(
-        default=None,
-        description="Target device (None = all connected devices)"
+        default=None, description="Target device (None = all connected devices)"
     )
     title: str
     body: str
@@ -104,7 +94,7 @@ class PushNotificationRequest(BaseModel):
 
 class WebSocketMessage(BaseModel):
     """WebSocket message envelope."""
-    
+
     type: str = Field(description="Message type: chat, event, notification, ping")
     payload: dict[str, Any] = Field(default_factory=dict)
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -112,7 +102,7 @@ class WebSocketMessage(BaseModel):
 
 class DeviceInfo(BaseModel):
     """Information about a connected device."""
-    
+
     device_id: str
     device_name: str | None = None
     platform: str = "unknown"

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cortex - Chat</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        header {
+            padding: 1rem;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        #chat { flex: 1; overflow-y: auto; padding: 1rem; }
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .user { background: #2563eb; margin-left: auto; }
+        .assistant { background: #2a2a2a; }
+        .system { background: #374151; font-size: 0.875rem; opacity: 0.8; }
+        #input-area {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+        }
+        input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover { background: #1d4ed8; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🧠 Cortex Core</h1>
+    </header>
+    
+    <div id="chat"></div>
+    
+    <div id="input-area">
+        <input type="text" id="message-input" placeholder="Chat with Cortex...">
+        <button id="send-btn">Send</button>
+    </div>
+    
+    <script>
+        const chat = document.getElementById('chat');
+        const input = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        
+        // WebSocket connection
+        const wsUrl = `ws://${window.location.host}/chat/cortex`;
+        let ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            addMessage('Connected to Cortex Core', 'system');
+            sendBtn.disabled = false;
+        };
+        
+        ws.onclose = () => {
+            addMessage('Disconnected from Cortex Core', 'system');
+            sendBtn.disabled = true;
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.error) {
+                addMessage(`Error: ${data.error}`, 'system');
+            } else if (data.response) {
+                addMessage(data.response, 'assistant');
+            }
+        };
+        
+        function addMessage(text, role) {
+            const msg = document.createElement('div');
+            msg.className = `message ${role}`;
+            msg.textContent = text;
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        
+        function sendMessage() {
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addMessage(message, 'user');
+            ws.send(JSON.stringify({ message }));
+            input.value = '';
+        }
+        
+        sendBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

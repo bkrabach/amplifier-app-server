@@ -1,14 +1,11 @@
 """WebSocket endpoints for real-time communication."""
 
 import logging
-import json
-from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from amplifier_server.models import WebSocketMessage
-from amplifier_server.session_manager import SessionManager
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ async def device_websocket(
     platform: str = Query(default="unknown"),
 ):
     """WebSocket endpoint for device connections.
-    
+
     Devices (Windows clients, mobile apps, etc.) connect here to:
     - Receive push notifications
     - Send notifications for ingestion
@@ -46,7 +43,7 @@ async def device_websocket(
     if not _device_manager:
         await websocket.close(code=1011, reason="Server not initialized")
         return
-    
+
     await _device_manager.connect(
         websocket=websocket,
         device_id=device_id,
@@ -54,7 +51,7 @@ async def device_websocket(
         platform=platform,
         capabilities=["notifications"],
     )
-    
+
     try:
         await _device_manager.listen(websocket, device_id)
     except WebSocketDisconnect:
@@ -69,46 +66,50 @@ async def chat_websocket(
     session_id: str,
 ):
     """WebSocket endpoint for interactive chat with a session.
-    
+
     Provides real-time bidirectional communication with an Amplifier session.
     """
     if not _session_manager:
         await websocket.close(code=1011, reason="Server not initialized")
         return
-    
+
     # Verify session exists
     try:
         await _session_manager.get_session(session_id)
     except Exception:
         await websocket.close(code=1008, reason=f"Session not found: {session_id}")
         return
-    
+
     await websocket.accept()
     logger.info(f"Chat WebSocket connected to session {session_id}")
-    
+
     try:
         while True:
             # Receive message from client
             data = await websocket.receive_json()
             message_type = data.get("type", "chat")
-            
+
             if message_type == "chat":
                 # Execute prompt and stream response
                 prompt = data.get("payload", {}).get("prompt", "")
-                
+
                 if not prompt:
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": "Empty prompt"},
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "payload": {"message": "Empty prompt"},
+                        }
+                    )
                     continue
-                
+
                 # Send acknowledgment
-                await websocket.send_json({
-                    "type": "ack",
-                    "payload": {"status": "processing"},
-                })
-                
+                await websocket.send_json(
+                    {
+                        "type": "ack",
+                        "payload": {"status": "processing"},
+                    }
+                )
+
                 try:
                     # Execute (non-streaming for now)
                     response = await _session_manager.execute(
@@ -116,29 +117,35 @@ async def chat_websocket(
                         prompt=prompt,
                         stream=False,
                     )
-                    
+
                     # Send response
-                    await websocket.send_json({
-                        "type": "response",
-                        "payload": {"content": response},
-                    })
-                    
+                    await websocket.send_json(
+                        {
+                            "type": "response",
+                            "payload": {"content": response},
+                        }
+                    )
+
                 except Exception as e:
                     logger.error(f"Execution error: {e}")
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": str(e)},
-                    })
-            
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "payload": {"message": str(e)},
+                        }
+                    )
+
             elif message_type == "ping":
                 await websocket.send_json({"type": "pong"})
-            
+
             else:
-                await websocket.send_json({
-                    "type": "error",
-                    "payload": {"message": f"Unknown message type: {message_type}"},
-                })
-                
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "payload": {"message": f"Unknown message type: {message_type}"},
+                    }
+                )
+
     except WebSocketDisconnect:
         logger.info(f"Chat WebSocket disconnected from session {session_id}")
     except Exception as e:
@@ -151,22 +158,22 @@ async def events_websocket(
     session_id: str = Query(default=None),
 ):
     """WebSocket endpoint for event streaming.
-    
+
     Subscribe to events from one or all sessions.
     """
     await websocket.accept()
     logger.info(f"Events WebSocket connected (session_id={session_id})")
-    
+
     # TODO: Implement event streaming via hooks
     # This would subscribe to session events and forward them
-    
+
     try:
         while True:
             # Keep connection alive, forward events
             data = await websocket.receive_json()
-            
+
             if data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
-            
+
     except WebSocketDisconnect:
         logger.info("Events WebSocket disconnected")

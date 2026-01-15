@@ -106,7 +106,9 @@ class LLMScorer:
         try:
             if self.rules_path.exists():
                 self._custom_rules = self.rules_path.read_text()
-                logger.info(f"Loaded {len(self._custom_rules)} chars of rules from {self.rules_path}")
+                logger.info(
+                    f"Loaded {len(self._custom_rules)} chars of rules from {self.rules_path}"
+                )
             else:
                 logger.warning(f"Rules file not found: {self.rules_path}")
                 self._custom_rules = ""
@@ -154,7 +156,7 @@ class LLMScorer:
         from datetime import datetime
 
         self._load_rules()  # Reload from disk
-        
+
         prompt = SCORING_FRAMEWORK.format(
             rules_file=str(self.rules_path),
             custom_rules=self._custom_rules or "No rules loaded",
