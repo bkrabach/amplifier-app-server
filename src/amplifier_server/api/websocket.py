@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from amplifier_server.auth.user_store import UserStore
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.session_manager import SessionManager
 
@@ -14,35 +15,57 @@ router = APIRouter(tags=["websocket"])
 # These will be injected by the server
 _session_manager: SessionManager | None = None
 _device_manager: DeviceManager | None = None
+_user_store: UserStore | None = None
 
 
 def inject_managers(
     session_manager: SessionManager,
     device_manager: DeviceManager,
+    user_store: UserStore,
 ) -> None:
     """Inject managers into the WebSocket module."""
-    global _session_manager, _device_manager
+    global _session_manager, _device_manager, _user_store
     _session_manager = session_manager
     _device_manager = device_manager
+    _user_store = user_store
 
 
 @router.websocket("/ws/device/{device_id}")
 async def device_websocket(
     websocket: WebSocket,
     device_id: str,
+    api_key: str = Query(...),  # Required API key in query
     device_name: str = Query(default=None),
     platform: str = Query(default="unknown"),
 ):
-    """WebSocket endpoint for device connections.
+    """WebSocket endpoint for device connections. Requires API key authentication.
 
     Devices (Windows clients, mobile apps, etc.) connect here to:
     - Receive push notifications
     - Send notifications for ingestion
     - Send status updates
     """
+    # Validate API key BEFORE accepting connection
+    if not _user_store:
+        await websocket.close(code=1011, reason="Server not initialized")
+        return
+
+    try:
+        user = await _user_store.get_user_by_api_key(api_key)
+        if not user or not user.is_active:
+            await websocket.close(code=1008, reason="Invalid API key")
+            return
+    except Exception as e:
+        logger.error(f"API key validation failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+
     if not _device_manager:
         await websocket.close(code=1011, reason="Server not initialized")
         return
+
+    # Accept connection for authenticated user
+    logger.info(f"Device {device_id} authenticated for user {user.id}")
 
     await _device_manager.connect(
         websocket=websocket,

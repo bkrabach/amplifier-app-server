@@ -27,13 +27,22 @@ class SessionManager:
     Handles session lifecycle, persistence, and execution routing.
     """
 
-    def __init__(self, data_dir: Path | str):
+    def __init__(self, data_dir: Path | str, user_id: str | None = None):
         """Initialize the session manager.
 
         Args:
             data_dir: Directory for session state and logs
+            user_id: Optional user ID for per-user session isolation
         """
-        self.data_dir = Path(data_dir)
+        self.base_dir = Path(data_dir)
+        self.user_id = user_id
+
+        # If user_id provided, use per-user path
+        if user_id:
+            self.data_dir = self.base_dir.parent / "users" / user_id / "sessions"
+        else:
+            self.data_dir = self.base_dir
+
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         # Active sessions (in-memory)

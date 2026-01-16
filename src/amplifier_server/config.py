@@ -40,6 +40,24 @@ class ServerConfig(BaseSettings):
         description="Bundles to create sessions for on startup",
     )
 
+    # Security settings
+    jwt_secret: str = Field(
+        default="",  # Will be auto-generated if empty
+        description="JWT signing secret (auto-generated if not set)",
+    )
+    jwt_expiry_minutes: int = Field(
+        default=15,
+        description="JWT access token expiry in minutes",
+    )
+    refresh_token_days: int = Field(
+        default=30,
+        description="Refresh token expiry in days",
+    )
+    require_auth: bool = Field(
+        default=True,
+        description="Require authentication for all endpoints (except /auth/*)",
+    )
+
     class Config:
         env_prefix = "AMPLIFIER_SERVER_"
         env_file = ".env"

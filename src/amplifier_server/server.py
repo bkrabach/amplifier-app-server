@@ -42,6 +42,7 @@ class AmplifierServer:
         host: str = "0.0.0.0",
         port: int = 8420,
         cors_origins: list[str] | None = None,
+        jwt_secret: str | None = None,
     ):
         """Initialize the server.
 
@@ -50,6 +51,7 @@ class AmplifierServer:
             host: Host to bind to
             port: Port to listen on
             cors_origins: Allowed CORS origins (None = allow all for development)
+            jwt_secret: JWT secret key (auto-generated if not provided)
         """
         self.data_dir = Path(data_dir).expanduser()
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -58,7 +60,21 @@ class AmplifierServer:
         self.port = port
         self.cors_origins = cors_origins or ["*"]
 
-        # Core managers
+        # Initialize security (JWT secret)
+        import secrets
+
+        from amplifier_server.auth.security import init_security
+
+        self.jwt_secret = jwt_secret or secrets.token_urlsafe(32)
+        init_security(self.jwt_secret)
+        logger.info("Security initialized")
+
+        # Initialize user store
+        from amplifier_server.auth.user_store import UserStore
+
+        self.user_store = UserStore(self.data_dir / "system" / "users.db")
+
+        # Core managers (will be per-user after auth)
         self.session_manager = SessionManager(self.data_dir / "sessions")
         self.device_manager = DeviceManager()
         self.notification_store = NotificationStore(self.data_dir / "notifications.db")
@@ -96,6 +112,20 @@ class AmplifierServer:
             logger.info(f"Amplifier Server starting on {self.host}:{self.port}")
             logger.info(f"Data directory: {self.data_dir}")
 
+            # Initialize user store
+            await self.user_store.initialize()
+
+            # Check bootstrap mode
+            user_count = await self.user_store.count_users()
+            if user_count == 0:
+                logger.warning("=" * 60)
+                logger.warning("BOOTSTRAP MODE: No users exist")
+                logger.warning("First registered user will become admin")
+                logger.warning("Register at: POST /auth/register")
+                logger.warning("=" * 60)
+            else:
+                logger.info(f"Found {user_count} user(s)")
+
             # Initialize notification store
             await self.notification_store.initialize()
 
@@ -115,6 +145,7 @@ class AmplifierServer:
             if self.llm_scorer:
                 await self.llm_scorer.cleanup()
             await self.notification_store.close()
+            await self.user_store.close()
             await self.session_manager.shutdown()
 
         app = FastAPI(
@@ -137,6 +168,11 @@ class AmplifierServer:
         self._inject_dependencies()
 
         # Register routers
+        from amplifier_server.api.admin import router as admin_router
+        from amplifier_server.api.auth import router as auth_router
+
+        app.include_router(auth_router)  # Auth endpoints (public)
+        app.include_router(admin_router)  # Admin endpoints (protected)
         app.include_router(chat_router)
         app.include_router(sessions_router)
         app.include_router(devices_router)
@@ -183,6 +219,15 @@ class AmplifierServer:
 
     def _inject_dependencies(self) -> None:
         """Inject managers into API modules."""
+        # Inject user store into auth modules
+        from amplifier_server.api import admin as admin_api
+        from amplifier_server.api import auth as auth_api
+        from amplifier_server.auth import middleware as auth_middleware
+
+        auth_api.inject_user_store(self.user_store)
+        admin_api.inject_user_store(self.user_store)
+        auth_middleware.inject_user_store(self.user_store)
+
         # Override dependency functions
         sessions_api.get_session_manager = lambda: self.session_manager
         devices_api.get_device_manager = lambda: self.device_manager
@@ -196,10 +241,10 @@ class AmplifierServer:
         )
 
         # Inject into WebSocket module
-        websocket_api.inject_managers(self.session_manager, self.device_manager)
+        websocket_api.inject_managers(self.session_manager, self.device_manager, self.user_store)
 
         # Inject into Chat module
-        chat_api.inject_managers(self.session_manager)
+        chat_api.inject_managers(self.session_manager, self.user_store)
 
     async def _init_llm_scorer(self) -> None:
         """Initialize the LLM scorer.

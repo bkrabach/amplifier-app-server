@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from amplifier_server.auth import User, require_auth
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.models import (
     IngestNotificationRequest,
@@ -69,6 +70,7 @@ def get_notification_processor() -> NotificationProcessor | None:
 @router.post("/ingest")
 async def ingest_notification(
     request: IngestNotificationRequest,
+    user: User = Depends(require_auth),
     target_session: str | None = None,
     session_manager: SessionManager = Depends(get_session_manager),
     notification_store: NotificationStore = Depends(get_notification_store),
@@ -111,6 +113,7 @@ async def ingest_notification(
 
 @router.get("/recent")
 async def get_recent_notifications(
+    user: User = Depends(require_auth),
     limit: int = Query(default=50, le=500),
     device_id: str | None = None,
     app_id: str | None = None,
@@ -136,6 +139,7 @@ async def get_recent_notifications(
 
 @router.get("/stats")
 async def get_notification_stats(
+    user: User = Depends(require_auth),
     hours: int = Query(default=24, le=168),
     notification_store: NotificationStore = Depends(get_notification_store),
 ) -> dict[str, Any]:
@@ -146,6 +150,7 @@ async def get_notification_stats(
 
 @router.get("/digest")
 async def get_notification_digest(
+    user: User = Depends(require_auth),
     hours: int = Query(default=1, le=24),
     notification_store: NotificationStore = Depends(get_notification_store),
 ) -> dict[str, Any]:
@@ -162,6 +167,7 @@ async def get_notification_digest(
 @router.get("/{notification_id}")
 async def get_notification(
     notification_id: int,
+    user: User = Depends(require_auth),
     notification_store: NotificationStore = Depends(get_notification_store),
 ) -> dict[str, Any]:
     """Get a specific notification by ID."""
@@ -176,6 +182,7 @@ async def get_notification(
 @router.post("/push")
 async def push_notification(
     request: PushNotificationRequest,
+    user: User = Depends(require_auth),
     device_manager: DeviceManager = Depends(get_device_manager),
 ) -> dict[str, Any]:
     """Push a notification to connected device(s).

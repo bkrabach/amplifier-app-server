@@ -5,6 +5,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from amplifier_server.auth import User, require_auth
 from amplifier_server.models import (
     CreateSessionRequest,
     CreateSessionResponse,
@@ -29,6 +30,7 @@ def get_session_manager() -> SessionManager:
 @router.post("", response_model=CreateSessionResponse)
 async def create_session(
     request: CreateSessionRequest,
+    user: User = Depends(require_auth),
     manager: SessionManager = Depends(get_session_manager),
 ) -> CreateSessionResponse:
     """Create a new Amplifier session."""
@@ -54,6 +56,7 @@ async def create_session(
 
 @router.get("", response_model=list[SessionInfo])
 async def list_sessions(
+    user: User = Depends(require_auth),
     manager: SessionManager = Depends(get_session_manager),
 ) -> list[SessionInfo]:
     """List all sessions."""
@@ -63,6 +66,7 @@ async def list_sessions(
 @router.get("/{session_id}", response_model=SessionInfo)
 async def get_session(
     session_id: str,
+    user: User = Depends(require_auth),
     manager: SessionManager = Depends(get_session_manager),
 ) -> SessionInfo:
     """Get information about a session."""
@@ -76,6 +80,7 @@ async def get_session(
 async def execute(
     session_id: str,
     request: ExecuteRequest,
+    user: User = Depends(require_auth),
     manager: SessionManager = Depends(get_session_manager),
 ) -> ExecuteResponse:
     """Execute a prompt in a session."""
@@ -108,6 +113,7 @@ async def execute(
 async def inject_context(
     session_id: str,
     content: str,
+    user: User = Depends(require_auth),
     role: str = "user",
     manager: SessionManager = Depends(get_session_manager),
 ) -> dict[str, str]:
@@ -134,6 +140,7 @@ async def inject_context(
 @router.delete("/{session_id}")
 async def stop_session(
     session_id: str,
+    user: User = Depends(require_auth),
     manager: SessionManager = Depends(get_session_manager),
 ) -> dict[str, str]:
     """Stop and cleanup a session."""

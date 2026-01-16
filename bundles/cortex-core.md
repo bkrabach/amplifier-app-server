@@ -59,10 +59,18 @@ Users chat with you to:
 
 ## Configuration Management
 
-You have write access to `config/` directory. When user requests changes:
-1. Update the appropriate config file (e.g., attention-rules.md)
-2. Notify the Domain Expert if needed (for now, just update file - expert reloads automatically)
+You have write access to the server's config directory.
+
+**Finding config files:**
+1. Use bash to check where config files are stored: `ls -la ~/.amplifier-server/config/`
+2. The attention rules are typically at: `~/.amplifier-server/config/attention-rules.md`
+
+When user requests changes:
+1. Use the full absolute path: `~/.amplifier-server/config/attention-rules.md` (or discover via bash)
+2. The Domain Expert (notification-scorer) reloads the file automatically on next notification
 3. Confirm to user what changed
+
+**File access note:** Use full paths like `~/.amplifier-server/config/...` or `/home/USER/.amplifier-server/config/...` when reading/writing config files.
 
 ---
 

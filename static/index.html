@@ -150,8 +150,15 @@
         const input = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         
-        // WebSocket connection
-        const wsUrl = `ws://${window.location.host}/chat/cortex`;
+        // Check authentication
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+        
+        // WebSocket connection with JWT token
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/chat/cortex?token=${encodeURIComponent(token)}`;
         let ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
@@ -159,9 +166,22 @@
             sendBtn.disabled = false;
         };
         
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             addMessage('Disconnected from Cortex Core', 'system');
             sendBtn.disabled = true;
+            
+            // If closed due to auth error, redirect to login
+            if (event.code === 1008) {
+                setTimeout(() => {
+                    localStorage.clear();
+                    window.location.href = '/login.html';
+                }, 2000);
+            }
+        };
+        
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            addMessage('Connection error', 'system');
         };
         
         ws.onmessage = (event) => {
