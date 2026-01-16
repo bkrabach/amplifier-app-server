@@ -45,23 +45,6 @@
             font-weight: var(--font-weight-medium);
         }
 
-        .container {
-            max-width: 1280px;
-            margin: var(--spacing-6) auto;
-            padding: 0 var(--spacing-6);
-        }
-
-        .nav {
-            background: var(--color-surface-primary);
-            border-radius: var(--radius-lg);
-            padding: var(--spacing-4);
-            margin-bottom: var(--spacing-6);
-            display: flex;
-            gap: var(--spacing-2);
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--color-border-default);
-        }
-
         .nav .btn-secondary {
             margin-left: auto;
         }
@@ -153,14 +136,14 @@
         <div class="nav">
             <button class="btn btn-secondary active" onclick="showSection('users')">Users</button>
             <button class="btn btn-secondary" onclick="showSection('apikeys')">API Keys</button>
-            <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+            <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
         </div>
 
         <!-- Users Section -->
         <div id="users" class="section active">
             <div class="section-header">
                 <h2 class="section-title">Users</h2>
-                <button class="btn btn-primary" onclick="showCreateUserModal()">Create User</button>
+                <button class="btn btn-primary" id="createUserBtn">Create User</button>
             </div>
             <div class="table-wrapper">
                 <table id="usersTable" class="table">
@@ -183,7 +166,7 @@
         <div id="apikeys" class="section">
             <div class="section-header">
                 <h2 class="section-title">API Keys</h2>
-                <button class="btn btn-primary" onclick="showCreateAPIKeyModal()">Generate API Key</button>
+                <button class="btn btn-primary" id="createAPIKeyBtn">Generate API Key</button>
             </div>
             <div class="table-wrapper">
                 <table id="apikeysTable" class="table">
@@ -206,11 +189,11 @@
 
     <!-- Create User Modal -->
     <div id="createUserModal" class="modal">
-        <div class="modal-overlay" onclick="closeModal('createUserModal')"></div>
+        <div class="modal-overlay"></div>
         <div class="modal-container">
             <div class="modal-header">
                 <h2 class="modal-title">Create User</h2>
-                <button class="modal-close" aria-label="Close" onclick="closeModal('createUserModal')">
+                <button class="modal-close" aria-label="Close">
                     ✕
                 </button>
             </div>
@@ -218,22 +201,22 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label class="form-label" for="newUsername">Username</label>
-                        <input type="text" id="newUsername" class="form-input" required>
+                        <input type="text" id="newUsername" name="username" class="form-input" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="newEmail">
                             Email <span class="form-label-optional">(optional)</span>
                         </label>
-                        <input type="email" id="newEmail" class="form-input">
+                        <input type="email" id="newEmail" name="email" class="form-input">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="newPassword">Password</label>
-                        <input type="password" id="newPassword" class="form-input" required minlength="8">
+                        <input type="password" id="newPassword" name="password" class="form-input" required minlength="8">
                         <div class="form-hint">Minimum 8 characters</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-close>Cancel</button>
                     <button type="submit" class="btn btn-primary">Create</button>
                 </div>
             </form>
@@ -242,11 +225,11 @@
 
     <!-- Create API Key Modal -->
     <div id="createAPIKeyModal" class="modal">
-        <div class="modal-overlay" onclick="closeModal('createAPIKeyModal')"></div>
+        <div class="modal-overlay"></div>
         <div class="modal-container">
             <div class="modal-header">
                 <h2 class="modal-title">Generate API Key</h2>
-                <button class="modal-close" aria-label="Close" onclick="closeModal('createAPIKeyModal')">
+                <button class="modal-close" aria-label="Close">
                     ✕
                 </button>
             </div>
@@ -254,21 +237,21 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label class="form-label" for="apiKeyUser">User</label>
-                        <select id="apiKeyUser" class="form-select" required></select>
+                        <select id="apiKeyUser" name="user" class="form-select" required></select>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="apiKeyName">Name</label>
-                        <input type="text" id="apiKeyName" class="form-input" placeholder="e.g., Windows Desktop" required>
+                        <input type="text" id="apiKeyName" name="name" class="form-input" placeholder="e.g., Windows Desktop" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="apiKeyExpires">
                             Expires (days) <span class="form-label-optional">(optional)</span>
                         </label>
-                        <input type="number" id="apiKeyExpires" class="form-input" placeholder="Leave empty for no expiration">
+                        <input type="number" id="apiKeyExpires" name="expires" class="form-input" placeholder="Leave empty for no expiration">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createAPIKeyModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-close>Cancel</button>
                     <button type="submit" class="btn btn-primary">Generate</button>
                 </div>
             </form>
@@ -277,11 +260,11 @@
 
     <!-- API Key Result Modal -->
     <div id="apiKeyResultModal" class="modal">
-        <div class="modal-overlay" onclick="closeModal('apiKeyResultModal')"></div>
+        <div class="modal-overlay"></div>
         <div class="modal-container">
             <div class="modal-header modal-header-warning">
                 <h2 class="modal-title">Save This API Key</h2>
-                <button class="modal-close" aria-label="Close" onclick="closeModal('apiKeyResultModal')">
+                <button class="modal-close" aria-label="Close">
                     ✕
                 </button>
             </div>
@@ -292,50 +275,49 @@
                 <div class="code-block" id="apiKeyValue"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="copyAPIKey()">Copy to Clipboard</button>
-                <button class="btn btn-primary" onclick="closeModal('apiKeyResultModal')">Done</button>
+                <button class="btn btn-secondary" id="copyAPIKeyBtn">Copy to Clipboard</button>
+                <button class="btn btn-primary" data-close>Done</button>
             </div>
         </div>
     </div>
 
-    <script>
-        const API_BASE = window.location.origin;
-        let currentAPIKey = '';
+    <script type="module">
+        import { requireAuth, logout } from './js/auth.js';
+        import { api } from './js/api.js';
+        import { showModal, closeModal } from './js/modal.js';
+        import { showToast } from './js/ui.js';
+        import { confirmModal } from './js/modal.js';
+        import { getFormData, setButtonLoading } from './js/ui.js';
 
         // Check authentication
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-            window.location.href = '/login.html';
-        }
+        requireAuth();
 
-        async function apiCall(endpoint, options = {}) {
-            const headers = {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                ...options.headers
-            };
+        let currentAPIKey = '';
 
-            const response = await fetch(`${API_BASE}${endpoint}`, {
-                ...options,
-                headers
+        // Setup modal close handlers
+        document.querySelectorAll('.modal-close, [data-close]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const modal = e.target.closest('.modal');
+                if (modal) {
+                    closeModal(modal.id);
+                }
             });
+        });
 
-            if (response.status === 401) {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('refresh_token');
-                window.location.href = '/login.html';
-                return;
-            }
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                const modal = e.target.closest('.modal');
+                if (modal) {
+                    closeModal(modal.id);
+                }
+            });
+        });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Request failed');
-            }
+        // Logout handler
+        document.getElementById('logoutBtn').addEventListener('click', logout);
 
-            return response.json();
-        }
-
-        function showSection(name) {
+        // Section navigation
+        window.showSection = function(name) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.nav .btn-secondary').forEach(b => b.classList.remove('active'));
             
@@ -344,40 +326,49 @@
 
             if (name === 'users') loadUsers();
             if (name === 'apikeys') loadAPIKeys();
-        }
+        };
 
         async function loadUsers() {
-            try {
-                const data = await apiCall('/admin/users');
-                const tbody = document.querySelector('#usersTable tbody');
-                tbody.innerHTML = data.users.map(user => `
-                    <tr>
-                        <td>${user.username}</td>
-                        <td>${user.email || '-'}</td>
-                        <td><span class="badge badge-${user.role}">${user.role}</span></td>
-                        <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
-                        <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        <td>
-                            <div class="table-actions">
-                                ${user.is_active ? `<button class="btn btn-sm btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>` : ''}
-                            </div>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (error) {
-                alert('Failed to load users: ' + error.message);
+            const result = await api.get('/admin/users');
+            
+            if (!result.success) {
+                showToast('Failed to load users: ' + result.error, 'error');
+                return;
             }
+            
+            const tbody = document.querySelector('#usersTable tbody');
+            tbody.innerHTML = result.data.users.map(user => `
+                <tr>
+                    <td>${user.username}</td>
+                    <td>${user.email || '-'}</td>
+                    <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                    <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <div class="table-actions">
+                            ${user.is_active ? `<button class="btn btn-sm btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         async function loadAPIKeys() {
-            try {
-                const users = await apiCall('/admin/users');
-                const tbody = document.querySelector('#apikeysTable tbody');
-                tbody.innerHTML = '';
+            const usersResult = await api.get('/admin/users');
+            
+            if (!usersResult.success) {
+                showToast('Failed to load users: ' + usersResult.error, 'error');
+                return;
+            }
+            
+            const tbody = document.querySelector('#apikeysTable tbody');
+            tbody.innerHTML = '';
 
-                for (const user of users.users) {
-                    const keys = await apiCall(`/admin/users/${user.id}/api-keys`);
-                    keys.keys.forEach(key => {
+            for (const user of usersResult.data.users) {
+                const keysResult = await api.get(`/admin/users/${user.id}/api-keys`);
+                
+                if (keysResult.success) {
+                    keysResult.data.keys.forEach(key => {
                         tbody.innerHTML += `
                             <tr>
                                 <td>${user.username}</td>
@@ -395,50 +386,49 @@
                         `;
                     });
                 }
-            } catch (error) {
-                alert('Failed to load API keys: ' + error.message);
             }
         }
 
-        function showCreateUserModal() {
-            document.getElementById('createUserModal').classList.add('active');
-        }
+        document.getElementById('createUserBtn').addEventListener('click', () => {
+            showModal('createUserModal');
+        });
 
-        async function showCreateAPIKeyModal() {
-            try {
-                const data = await apiCall('/admin/users');
-                const select = document.getElementById('apiKeyUser');
-                select.innerHTML = data.users.map(user => 
-                    `<option value="${user.id}">${user.username}</option>`
-                ).join('');
-                document.getElementById('createAPIKeyModal').classList.add('active');
-            } catch (error) {
-                alert('Failed to load users: ' + error.message);
+        document.getElementById('createAPIKeyBtn').addEventListener('click', async () => {
+            const result = await api.get('/admin/users');
+            
+            if (!result.success) {
+                showToast('Failed to load users: ' + result.error, 'error');
+                return;
             }
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
-        }
+            
+            const select = document.getElementById('apiKeyUser');
+            select.innerHTML = result.data.users.map(user => 
+                `<option value="${user.id}">${user.username}</option>`
+            ).join('');
+            showModal('createAPIKeyModal');
+        });
 
         document.getElementById('createUserForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            try {
-                await apiCall('/admin/users', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        username: document.getElementById('newUsername').value,
-                        email: document.getElementById('newEmail').value || null,
-                        password: document.getElementById('newPassword').value
-                    })
-                });
-                
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            setButtonLoading(submitBtn, true, 'Creating...');
+            
+            const result = await api.post('/admin/users', {
+                username: document.getElementById('newUsername').value,
+                email: document.getElementById('newEmail').value || null,
+                password: document.getElementById('newPassword').value
+            });
+            
+            setButtonLoading(submitBtn, false);
+            
+            if (result.success) {
                 closeModal('createUserModal');
                 loadUsers();
-                alert('User created successfully');
-            } catch (error) {
-                alert('Failed to create user: ' + error.message);
+                showToast('User created successfully', 'success');
+                e.target.reset();
+            } else {
+                showToast('Failed to create user: ' + result.error, 'error');
             }
         });
 
@@ -449,59 +439,68 @@
             const name = document.getElementById('apiKeyName').value;
             const expires = document.getElementById('apiKeyExpires').value;
             
-            try {
-                const data = await apiCall(`/admin/users/${userId}/api-keys`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        name,
-                        expires_days: expires ? parseInt(expires) : null
-                    })
-                });
-                
-                currentAPIKey = data.key;
-                document.getElementById('apiKeyValue').textContent = data.key;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            setButtonLoading(submitBtn, true, 'Generating...');
+            
+            const result = await api.post(`/admin/users/${userId}/api-keys`, {
+                name,
+                expires_days: expires ? parseInt(expires) : null
+            });
+            
+            setButtonLoading(submitBtn, false);
+            
+            if (result.success) {
+                currentAPIKey = result.data.key;
+                document.getElementById('apiKeyValue').textContent = result.data.key;
                 closeModal('createAPIKeyModal');
-                document.getElementById('apiKeyResultModal').classList.add('active');
+                showModal('apiKeyResultModal');
                 loadAPIKeys();
-            } catch (error) {
-                alert('Failed to generate API key: ' + error.message);
+                e.target.reset();
+            } else {
+                showToast('Failed to generate API key: ' + result.error, 'error');
             }
         });
 
-        async function disableUser(userId, username) {
-            if (!confirm(`Disable user ${username}? This will revoke all their tokens and API keys.`)) return;
+        window.disableUser = async function(userId, username) {
+            const confirmed = await confirmModal(
+                `Disable user ${username}? This will revoke all their tokens and API keys.`,
+                'Disable User'
+            );
             
-            try {
-                await apiCall(`/admin/users/${userId}`, { method: 'DELETE' });
+            if (!confirmed) return;
+            
+            const result = await api.delete(`/admin/users/${userId}`);
+            
+            if (result.success) {
                 loadUsers();
-                alert('User disabled successfully');
-            } catch (error) {
-                alert('Failed to disable user: ' + error.message);
+                showToast('User disabled successfully', 'success');
+            } else {
+                showToast('Failed to disable user: ' + result.error, 'error');
             }
-        }
+        };
 
-        async function revokeAPIKey(userId, keyId) {
-            if (!confirm('Revoke this API key? This action cannot be undone.')) return;
+        window.revokeAPIKey = async function(userId, keyId) {
+            const confirmed = await confirmModal(
+                'Revoke this API key? This action cannot be undone.',
+                'Revoke API Key'
+            );
             
-            try {
-                await apiCall(`/admin/users/${userId}/api-keys/${keyId}`, { method: 'DELETE' });
+            if (!confirmed) return;
+            
+            const result = await api.delete(`/admin/users/${userId}/api-keys/${keyId}`);
+            
+            if (result.success) {
                 loadAPIKeys();
-                alert('API key revoked successfully');
-            } catch (error) {
-                alert('Failed to revoke API key: ' + error.message);
+                showToast('API key revoked successfully', 'success');
+            } else {
+                showToast('Failed to revoke API key: ' + result.error, 'error');
             }
-        }
+        };
 
-        function copyAPIKey() {
+        document.getElementById('copyAPIKeyBtn').addEventListener('click', () => {
             navigator.clipboard.writeText(currentAPIKey);
-            alert('API key copied to clipboard');
-        }
-
-        function logout() {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            window.location.href = '/login.html';
-        }
+            showToast('API key copied to clipboard', 'success');
+        });
 
         // Load users on page load
         loadUsers();

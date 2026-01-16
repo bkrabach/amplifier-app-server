@@ -116,7 +116,11 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { setTokens } from './js/auth.js';
+        import { showToast } from './js/ui.js';
+        import { setButtonLoading } from './js/ui.js';
+
         const API_BASE = window.location.origin;
 
         // Check bootstrap mode on load
@@ -144,8 +148,7 @@
             const errorDiv = document.getElementById('error');
             
             errorDiv.style.display = 'none';
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Logging in...';
+            setButtonLoading(loginBtn, true, 'Logging in...');
 
             try {
                 const response = await fetch(`${API_BASE}/auth/login`, {
@@ -163,28 +166,29 @@
 
                 const data = await response.json();
                 
-                // Store tokens and user info
-                localStorage.setItem('access_token', data.access_token);
-                localStorage.setItem('refresh_token', data.refresh_token);
-                localStorage.setItem('user_role', data.role || 'user');
-                localStorage.setItem('username', data.username);
+                // Store tokens and user info using auth module
+                setTokens(data.access_token, data.refresh_token, data.username, data.role || 'user');
+                
+                // Show success toast
+                showToast('Login successful!', 'success', 1000);
                 
                 // Redirect based on role
-                if (data.role === 'admin') {
-                    window.location.href = '/admin.html';
-                } else {
-                    window.location.href = '/';
-                }
+                setTimeout(() => {
+                    if (data.role === 'admin') {
+                        window.location.href = '/admin.html';
+                    } else {
+                        window.location.href = '/';
+                    }
+                }, 1000);
                 
             } catch (error) {
                 errorDiv.textContent = error.message;
                 errorDiv.style.display = 'block';
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Log In';
+                setButtonLoading(loginBtn, false);
             }
         });
 
-        function showRegister() {
+        window.showRegister = function() {
             window.location.href = '/register.html';
         }
     </script>

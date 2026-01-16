@@ -155,7 +155,11 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { setTokens } from './js/auth.js';
+        import { showToast } from './js/ui.js';
+        import { setButtonLoading } from './js/ui.js';
+
         const API_BASE = window.location.origin;
 
         // Check bootstrap mode on load
@@ -189,8 +193,7 @@
             
             errorDiv.style.display = 'none';
             successDiv.style.display = 'none';
-            registerBtn.disabled = true;
-            registerBtn.textContent = 'Registering...';
+            setButtonLoading(registerBtn, true, 'Registering...');
 
             try {
                 const body = { username, password };
@@ -213,9 +216,8 @@
 
                 const data = await response.json();
                 
-                // Show success message
-                successDiv.textContent = data.message || 'Registration successful. Logging you in...';
-                successDiv.style.display = 'block';
+                // Show success toast
+                showToast('Registration successful! Logging you in...', 'success');
 
                 // Auto-login after successful registration
                 setTimeout(async () => {
@@ -234,11 +236,13 @@
 
                         const loginData = await loginResponse.json();
                         
-                        // Store tokens and user info
-                        localStorage.setItem('access_token', loginData.access_token);
-                        localStorage.setItem('refresh_token', loginData.refresh_token);
-                        localStorage.setItem('user_role', loginData.role || data.role || 'user');
-                        localStorage.setItem('username', username);
+                        // Store tokens and user info using auth module
+                        setTokens(
+                            loginData.access_token, 
+                            loginData.refresh_token, 
+                            username,
+                            loginData.role || data.role || 'user'
+                        );
                         
                         // Redirect based on role
                         if (data.role === 'admin' || loginData.role === 'admin') {
@@ -248,8 +252,7 @@
                         }
                         
                     } catch (loginError) {
-                        errorDiv.textContent = loginError.message + ' Redirecting to login...';
-                        errorDiv.style.display = 'block';
+                        showToast(loginError.message, 'error');
                         setTimeout(() => {
                             window.location.href = '/login.html';
                         }, 2000);
@@ -259,8 +262,7 @@
             } catch (error) {
                 errorDiv.textContent = error.message;
                 errorDiv.style.display = 'block';
-                registerBtn.disabled = false;
-                registerBtn.textContent = 'Register';
+                setButtonLoading(registerBtn, false);
             }
         });
     </script>

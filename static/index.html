@@ -115,7 +115,7 @@
         <div class="header-actions">
             <a href="/admin.html" id="adminLink" class="btn btn-ghost btn-sm" style="display: none;">Admin</a>
             <span class="user-info" id="userInfo"></span>
-            <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+            <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
         </div>
     </header>
     
@@ -132,32 +132,40 @@
         <button id="send-btn" class="btn btn-primary" disabled>Send</button>
     </div>
     
-    <script>
+    <script type="module">
+        import { requireAuth, getCurrentUser, isAdmin, logout } from './js/auth.js';
+        import { showToast } from './js/ui.js';
+
+        // Check authentication
+        requireAuth();
+        
         const chat = document.getElementById('chat');
         const input = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         const userInfo = document.getElementById('userInfo');
-        
-        // Check authentication
-        const token = localStorage.getItem('access_token');
-        const username = localStorage.getItem('username');
-        const userRole = localStorage.getItem('user_role');
-        
-        if (!token) {
-            window.location.href = '/login.html';
-        }
+        const logoutBtn = document.getElementById('logoutBtn');
         
         // Display username
-        if (username) {
-            userInfo.textContent = username;
+        const currentUser = getCurrentUser();
+        if (currentUser) {
+            userInfo.textContent = currentUser.username;
         }
         
         // Show admin link for admin users
-        if (userRole === 'admin') {
+        if (isAdmin()) {
             document.getElementById('adminLink').style.display = 'inline-block';
         }
         
+        // Logout handler
+        logoutBtn.addEventListener('click', () => {
+            if (ws) {
+                ws.close();
+            }
+            logout();
+        });
+        
         // WebSocket connection with JWT token
+        const token = localStorage.getItem('access_token');
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/chat/cortex?token=${encodeURIComponent(token)}`;
         let ws = new WebSocket(wsUrl);
@@ -173,9 +181,9 @@
             
             // If closed due to auth error, redirect to login
             if (event.code === 1008) {
+                showToast('Session expired. Please log in again.', 'error');
                 setTimeout(() => {
-                    localStorage.clear();
-                    window.location.href = '/login.html';
+                    logout();
                 }, 2000);
             }
         };
@@ -183,12 +191,14 @@
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
             addMessage('Connection error', 'system');
+            showToast('Connection error', 'error');
         };
         
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.error) {
                 addMessage(`Error: ${data.error}`, 'system');
+                showToast(data.error, 'error');
             } else if (data.response) {
                 addMessage(data.response, 'assistant', true);
             }
@@ -216,15 +226,6 @@
             addMessage(message, 'user');
             ws.send(JSON.stringify({ message }));
             input.value = '';
-        }
-        
-        function logout() {
-            ws.close();
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('user_role');
-            localStorage.removeItem('username');
-            window.location.href = '/login.html';
         }
         
         sendBtn.addEventListener('click', sendMessage);

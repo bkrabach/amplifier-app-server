@@ -666,15 +666,150 @@ body {
   display: none;
 }
 
+/* ==================== Container System ==================== */
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-4);
+  padding-right: var(--spacing-4);
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding-left: var(--spacing-6);
+    padding-right: var(--spacing-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-left: var(--spacing-8);
+    padding-right: var(--spacing-8);
+  }
+}
+
 /* ==================== Responsive ==================== */
-@media (max-width: 640px) {
+
+/* Mobile: < 768px */
+@media (max-width: 767px) {
+  /* Modal - Full screen on mobile */
   .modal-container {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 100vh;
+    height: 100vh;
     border-radius: 0;
   }
   
+  .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Table - Horizontal scroll */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Navigation - Stack vertically */
+  .nav {
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+  
+  .nav .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* Buttons - Touch-friendly */
+  .btn {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+  
+  .btn-sm {
+    min-height: 44px;
+    padding: 0.625rem 0.875rem;
+  }
+  
+  /* Form groups - Adjust spacing */
+  .form-group {
+    margin-bottom: var(--spacing-4);
+  }
+  
+  /* Header - Scale down */
+  .header {
+    padding: var(--spacing-4);
+  }
+  
+  .header-brand {
+    flex-direction: column;
+    gap: var(--spacing-1);
+  }
+  
+  .header-logo {
+    font-size: var(--font-size-lg);
+  }
+  
+  .header-subtitle {
+    font-size: var(--font-size-xs);
+  }
+  
+  .header-actions {
+    flex-wrap: wrap;
+  }
+  
+  /* Card - Full width on mobile */
+  .card {
+    border-radius: var(--radius-md);
+  }
+  
+  /* Messages - Wider on mobile */
   .message {
     max-width: 90%;
+  }
+}
+
+/* Tablet: 768px - 1023px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .modal-container {
+    max-width: 600px;
+  }
+}
+
+/* Desktop: 1024px+ */
+@media (min-width: 1024px) {
+  .modal-container.modal-lg {
+    max-width: 800px;
+  }
+  
+  .modal-container.modal-xl {
+    max-width: 1000px;
+  }
+}
+
+/* ==================== Animation Keyframes ==================== */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
   }
 }
