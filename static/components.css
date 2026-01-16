@@ -242,11 +242,7 @@ body {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  transition: box-shadow var(--transition-base);
-}
-
-.card:hover {
-  box-shadow: var(--shadow-lg);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
 }
 
 .card-header {
@@ -276,6 +272,50 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-3);
+}
+
+/* Card Variants */
+.card-elevated {
+  box-shadow: var(--shadow-lg);
+}
+
+.card-elevated:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+.card-bordered {
+  box-shadow: none;
+  border: 1px solid var(--color-border-default);
+}
+
+.card-bordered:hover {
+  border-color: var(--color-border-strong);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.card-interactive:active {
+  transform: translateY(0);
+}
+
+/* Card Sizes */
+.card-sm {
+  max-width: 400px;
+}
+
+.card-md {
+  max-width: 600px;
+}
+
+.card-lg {
+  max-width: 800px;
 }
 
 /* ==================== Alert/Toast Component ==================== */
@@ -789,6 +829,49 @@ body {
   .modal-container.modal-xl {
     max-width: 1000px;
   }
+}
+
+/* ==================== Skeleton Loading ==================== */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-tertiary) 50%,
+    var(--color-bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  height: 1rem;
+  width: 100%;
+}
+
+.skeleton-title {
+  height: 1.5rem;
+  width: 60%;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+}
+
+.skeleton-button {
+  height: 2.5rem;
+  width: 100px;
 }
 
 /* ==================== Animation Keyframes ==================== */

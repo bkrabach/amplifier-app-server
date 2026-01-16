@@ -109,3 +109,99 @@ export function renderEmptyState({ icon, title, message, action }) {
         </div>
     `;
 }
+
+/**
+ * Render skeleton loading state
+ * @param {string} type - Skeleton type (table, card, list, text)
+ * @param {number} count - Number of skeleton items (default: 3)
+ * @returns {string} HTML string
+ */
+export function renderSkeleton(type = 'text', count = 3) {
+    switch (type) {
+        case 'table':
+            return renderTableSkeleton(count);
+        case 'card':
+            return renderCardSkeleton(count);
+        case 'list':
+            return renderListSkeleton(count);
+        case 'text':
+        default:
+            return renderTextSkeleton(count);
+    }
+}
+
+function renderTableSkeleton(rows = 3) {
+    const skeletonRows = Array.from({ length: rows }, () => `
+        <tr>
+            <td><div class="skeleton skeleton-text"></div></td>
+            <td><div class="skeleton skeleton-text"></div></td>
+            <td><div class="skeleton skeleton-text"></div></td>
+            <td><div class="skeleton skeleton-text"></div></td>
+        </tr>
+    `).join('');
+
+    return `
+        <div class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th><div class="skeleton skeleton-text" style="width: 60%;"></div></th>
+                        <th><div class="skeleton skeleton-text" style="width: 60%;"></div></th>
+                        <th><div class="skeleton skeleton-text" style="width: 60%;"></div></th>
+                        <th><div class="skeleton skeleton-text" style="width: 60%;"></div></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${skeletonRows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderCardSkeleton(count = 3) {
+    const skeletonCards = Array.from({ length: count }, () => `
+        <div class="card" style="margin-bottom: var(--spacing-4);">
+            <div class="card-body">
+                <div class="skeleton skeleton-title" style="width: 60%; margin-bottom: var(--spacing-3);"></div>
+                <div class="skeleton skeleton-text" style="width: 100%; margin-bottom: var(--spacing-2);"></div>
+                <div class="skeleton skeleton-text" style="width: 85%; margin-bottom: var(--spacing-2);"></div>
+                <div class="skeleton skeleton-text" style="width: 70%;"></div>
+            </div>
+        </div>
+    `).join('');
+
+    return skeletonCards;
+}
+
+function renderListSkeleton(count = 3) {
+    const skeletonItems = Array.from({ length: count }, () => `
+        <div style="display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3); border-bottom: 1px solid var(--color-border-default);">
+            <div class="skeleton skeleton-avatar"></div>
+            <div style="flex: 1;">
+                <div class="skeleton skeleton-text" style="width: 40%; margin-bottom: var(--spacing-2);"></div>
+                <div class="skeleton skeleton-text" style="width: 70%;"></div>
+            </div>
+        </div>
+    `).join('');
+
+    return `
+        <div style="background: var(--color-surface-primary); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--color-border-default);">
+            ${skeletonItems}
+        </div>
+    `;
+}
+
+function renderTextSkeleton(lines = 3) {
+    const skeletonLines = Array.from({ length: lines }, (_, i) => {
+        const widths = ['100%', '95%', '85%', '90%', '80%'];
+        const width = widths[i % widths.length];
+        return `<div class="skeleton skeleton-text" style="width: ${width}; margin-bottom: var(--spacing-3);"></div>`;
+    }).join('');
+
+    return `
+        <div style="padding: var(--spacing-4);">
+            ${skeletonLines}
+        </div>
+    `;
+}

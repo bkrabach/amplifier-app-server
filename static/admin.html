@@ -145,21 +145,7 @@
                 <h2 class="section-title">Users</h2>
                 <button class="btn btn-primary" id="createUserBtn">Create User</button>
             </div>
-            <div class="table-wrapper">
-                <table id="usersTable" class="table">
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+            <div id="usersTableContainer"></div>
         </div>
 
         <!-- API Keys Section -->
@@ -168,22 +154,7 @@
                 <h2 class="section-title">API Keys</h2>
                 <button class="btn btn-primary" id="createAPIKeyBtn">Generate API Key</button>
             </div>
-            <div class="table-wrapper">
-                <table id="apikeysTable" class="table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Name</th>
-                            <th>Prefix</th>
-                            <th>Status</th>
-                            <th>Last Used</th>
-                            <th>Expires</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+            <div id="apikeysTableContainer"></div>
         </div>
     </div>
 
@@ -285,8 +256,9 @@
         import { requireAuth, logout } from './js/auth.js';
         import { api } from './js/api.js';
         import { showModal, closeModal, confirmModal } from './js/modal.js';
-        import { showToast, setButtonLoading } from './js/ui.js';
+        import { showToast, setButtonLoading, renderSkeleton } from './js/ui.js';
         import { getFormData } from './js/forms.js';
+        import { renderTableWithActions, renderBadge, formatDate } from './js/table.js';
 
         // Check authentication
         requireAuth();
@@ -328,64 +300,100 @@
         };
 
         async function loadUsers() {
+            const tableContainer = document.getElementById('usersTableContainer');
+            
+            // Show skeleton loading
+            tableContainer.innerHTML = renderSkeleton('table', 5);
+            
             const result = await api.get('/admin/users');
             
             if (!result.success) {
                 showToast('Failed to load users: ' + result.error, 'error');
+                tableContainer.innerHTML = `<div class="alert alert-error">Failed to load users</div>`;
                 return;
             }
             
-            const tbody = document.querySelector('#usersTable tbody');
-            tbody.innerHTML = result.data.users.map(user => `
-                <tr>
-                    <td>${user.username}</td>
-                    <td>${user.email || '-'}</td>
-                    <td><span class="badge badge-${user.role}">${user.role}</span></td>
-                    <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
-                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                    <td>
-                        <div class="table-actions">
-                            ${user.is_active ? `<button class="btn btn-sm btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+            // Render table with new component
+            tableContainer.innerHTML = renderTableWithActions({
+                columns: [
+                    { key: 'username', label: 'Username' },
+                    { key: 'email', label: 'Email', render: (val) => val || '-' },
+                    { key: 'role', label: 'Role', render: (val) => renderBadge(val, val) },
+                    { 
+                        key: 'is_active', 
+                        label: 'Status', 
+                        render: (val) => renderBadge(val ? 'Active' : 'Inactive', val ? 'active' : 'inactive')
+                    },
+                    { key: 'created_at', label: 'Created', render: (val) => formatDate(val) }
+                ],
+                rows: result.data.users,
+                actions: (user) => user.is_active 
+                    ? `<button class="btn btn-sm btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>`
+                    : '',
+                emptyMessage: {
+                    icon: '👥',
+                    title: 'No users yet',
+                    message: 'Get started by creating your first user.',
+                    action: '<button class="btn btn-primary" onclick="document.getElementById(\'createUserBtn\').click()">Create User</button>'
+                }
+            });
         }
 
         async function loadAPIKeys() {
+            const tableContainer = document.getElementById('apikeysTableContainer');
+            
+            // Show skeleton loading
+            tableContainer.innerHTML = renderSkeleton('table', 5);
+            
             const usersResult = await api.get('/admin/users');
             
             if (!usersResult.success) {
                 showToast('Failed to load users: ' + usersResult.error, 'error');
+                tableContainer.innerHTML = `<div class="alert alert-error">Failed to load users</div>`;
                 return;
             }
             
-            const tbody = document.querySelector('#apikeysTable tbody');
-            tbody.innerHTML = '';
-
+            // Collect all API keys from all users
+            const allKeys = [];
             for (const user of usersResult.data.users) {
                 const keysResult = await api.get(`/admin/users/${user.id}/api-keys`);
                 
                 if (keysResult.success) {
                     keysResult.data.keys.forEach(key => {
-                        tbody.innerHTML += `
-                            <tr>
-                                <td>${user.username}</td>
-                                <td>${key.name}</td>
-                                <td><code>${key.prefix}...</code></td>
-                                <td><span class="badge badge-${key.is_active ? 'active' : 'inactive'}">${key.is_active ? 'Active' : 'Inactive'}</span></td>
-                                <td>${key.last_used ? new Date(key.last_used).toLocaleDateString() : 'Never'}</td>
-                                <td>${key.expires_at ? new Date(key.expires_at).toLocaleDateString() : 'Never'}</td>
-                                <td>
-                                    <div class="table-actions">
-                                        ${key.is_active ? `<button class="btn btn-sm btn-danger" onclick="revokeAPIKey('${user.id}', '${key.id}')">Revoke</button>` : ''}
-                                    </div>
-                                </td>
-                            </tr>
-                        `;
+                        allKeys.push({
+                            ...key,
+                            username: user.username,
+                            userId: user.id
+                        });
                     });
                 }
             }
+            
+            // Render table with new component
+            tableContainer.innerHTML = renderTableWithActions({
+                columns: [
+                    { key: 'username', label: 'User' },
+                    { key: 'name', label: 'Name' },
+                    { key: 'prefix', label: 'Prefix', render: (val) => `<code>${val}...</code>` },
+                    { 
+                        key: 'is_active', 
+                        label: 'Status', 
+                        render: (val) => renderBadge(val ? 'Active' : 'Inactive', val ? 'active' : 'inactive')
+                    },
+                    { key: 'last_used', label: 'Last Used', render: (val) => formatDate(val, 'Never') },
+                    { key: 'expires_at', label: 'Expires', render: (val) => formatDate(val, 'Never') }
+                ],
+                rows: allKeys,
+                actions: (key) => key.is_active 
+                    ? `<button class="btn btn-sm btn-danger" onclick="revokeAPIKey('${key.userId}', '${key.id}')">Revoke</button>`
+                    : '',
+                emptyMessage: {
+                    icon: '🔑',
+                    title: 'No API keys yet',
+                    message: 'Generate an API key to get started.',
+                    action: '<button class="btn btn-primary" onclick="document.getElementById(\'createAPIKeyBtn\').click()">Generate API Key</button>'
+                }
+            });
         }
 
         document.getElementById('createUserBtn').addEventListener('click', () => {

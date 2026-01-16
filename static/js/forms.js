@@ -90,3 +90,112 @@ export function disableForm(formElement, disabled = true) {
         el.disabled = disabled;
     });
 }
+
+/**
+ * Render a complete form from field definitions
+ * @param {Array} fields - Field definitions
+ * @returns {string} HTML string for the form
+ */
+export function renderForm(fields) {
+    return fields.map(field => renderFormField(field)).join('');
+}
+
+/**
+ * Render a single form field
+ * @param {Object} field - Field definition
+ * @param {string} field.name - Field name
+ * @param {string} field.label - Field label
+ * @param {string} field.type - Field type (text, email, password, select, textarea)
+ * @param {boolean} field.required - Whether field is required
+ * @param {Array} field.options - Options for select fields [{ value, label }] or string array
+ * @param {string} field.placeholder - Placeholder text
+ * @param {string} field.hint - Hint text below field
+ * @param {number} field.minLength - Minimum length for validation
+ * @param {number} field.maxLength - Maximum length for validation
+ * @param {string} field.value - Default value
+ * @returns {string} HTML string for the form field
+ */
+export function renderFormField(field) {
+    const {
+        name,
+        label,
+        type = 'text',
+        required = false,
+        options = [],
+        placeholder = '',
+        hint = '',
+        minLength,
+        maxLength,
+        value = ''
+    } = field;
+
+    const id = `field-${name}`;
+    const requiredAttr = required ? 'required' : '';
+    const minLengthAttr = minLength ? `minlength="${minLength}"` : '';
+    const maxLengthAttr = maxLength ? `maxlength="${maxLength}"` : '';
+    const placeholderAttr = placeholder ? `placeholder="${placeholder}"` : '';
+    const valueAttr = value ? `value="${value}"` : '';
+
+    let inputHtml = '';
+
+    if (type === 'select') {
+        const selectOptions = options.map(opt => {
+            if (typeof opt === 'string') {
+                return `<option value="${opt}">${opt}</option>`;
+            } else {
+                const selected = opt.value === value ? 'selected' : '';
+                return `<option value="${opt.value}" ${selected}>${opt.label}</option>`;
+            }
+        }).join('');
+
+        inputHtml = `
+            <select 
+                id="${id}" 
+                name="${name}" 
+                class="form-select" 
+                ${requiredAttr}
+            >
+                ${!required ? '<option value="">Select...</option>' : ''}
+                ${selectOptions}
+            </select>
+        `;
+    } else if (type === 'textarea') {
+        inputHtml = `
+            <textarea 
+                id="${id}" 
+                name="${name}" 
+                class="form-input form-textarea" 
+                ${requiredAttr}
+                ${minLengthAttr}
+                ${maxLengthAttr}
+                ${placeholderAttr}
+                rows="4"
+            >${value}</textarea>
+        `;
+    } else {
+        inputHtml = `
+            <input 
+                type="${type}" 
+                id="${id}" 
+                name="${name}" 
+                class="form-input" 
+                ${requiredAttr}
+                ${minLengthAttr}
+                ${maxLengthAttr}
+                ${placeholderAttr}
+                ${valueAttr}
+            >
+        `;
+    }
+
+    return `
+        <div class="form-group">
+            <label class="form-label" for="${id}">
+                ${label}
+                ${!required ? '<span class="form-label-optional">(optional)</span>' : ''}
+            </label>
+            ${inputHtml}
+            ${hint ? `<div class="form-hint">${hint}</div>` : ''}
+        </div>
+    `;
+}

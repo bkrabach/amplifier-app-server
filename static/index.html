@@ -24,46 +24,6 @@
             flex-direction: column;
         }
         
-        .header {
-            padding: var(--spacing-4);
-            background: var(--color-bg-secondary);
-            border-bottom: 1px solid var(--color-border-default);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-3);
-        }
-        
-        .header-logo {
-            font-size: var(--font-size-xl);
-            font-weight: var(--font-weight-bold);
-            color: var(--color-text-primary);
-            letter-spacing: var(--letter-spacing-tight);
-        }
-        
-        .header-subtitle {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-secondary);
-            font-weight: var(--font-weight-medium);
-        }
-        
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-2);
-        }
-        
-        .user-info {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-secondary);
-            margin-right: var(--spacing-2);
-        }
-        
         #chat {
             flex: 1;
             overflow-y: auto;
@@ -105,19 +65,7 @@
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-brand">
-            <div>
-                <div class="header-logo">CORTEX</div>
-                <div class="header-subtitle">Intelligent Orchestration</div>
-            </div>
-        </div>
-        <div class="header-actions">
-            <a href="/admin.html" id="adminLink" class="btn btn-ghost btn-sm" style="display: none;">Admin</a>
-            <span class="user-info" id="userInfo"></span>
-            <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
-        </div>
-    </header>
+    <div id="app-header"></div>
     
     <div id="chat"></div>
     
@@ -133,36 +81,25 @@
     </div>
     
     <script type="module">
-        import { requireAuth, getCurrentUser, isAdmin, logout } from './js/auth.js';
+        import { requireAuth, getCurrentUser, isAdmin } from './js/auth.js';
         import { showToast } from './js/ui.js';
+        import { initHeader } from './components/header.js';
 
         // Check authentication
         requireAuth();
         
+        // Initialize header with current user
+        const currentUser = getCurrentUser();
+        initHeader('#app-header', {
+            title: 'CORTEX',
+            subtitle: 'Intelligent Orchestration',
+            user: currentUser,
+            showAdminLink: isAdmin()
+        });
+        
         const chat = document.getElementById('chat');
         const input = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
-        const userInfo = document.getElementById('userInfo');
-        const logoutBtn = document.getElementById('logoutBtn');
-        
-        // Display username
-        const currentUser = getCurrentUser();
-        if (currentUser) {
-            userInfo.textContent = currentUser.username;
-        }
-        
-        // Show admin link for admin users
-        if (isAdmin()) {
-            document.getElementById('adminLink').style.display = 'inline-block';
-        }
-        
-        // Logout handler
-        logoutBtn.addEventListener('click', () => {
-            if (ws) {
-                ws.close();
-            }
-            logout();
-        });
         
         // WebSocket connection with JWT token
         const token = localStorage.getItem('access_token');
@@ -170,21 +107,26 @@
         const wsUrl = `${protocol}//${window.location.host}/chat/cortex?token=${encodeURIComponent(token)}`;
         let ws = new WebSocket(wsUrl);
         
+        // Handle WebSocket closure when logout happens
+        let wsClosedByUser = false;
+        
         ws.onopen = () => {
             addMessage('Connected', 'system');
             sendBtn.disabled = false;
         };
         
         ws.onclose = (event) => {
-            addMessage('Disconnected', 'system');
-            sendBtn.disabled = true;
-            
-            // If closed due to auth error, redirect to login
-            if (event.code === 1008) {
-                showToast('Session expired. Please log in again.', 'error');
-                setTimeout(() => {
-                    logout();
-                }, 2000);
+            if (!wsClosedByUser) {
+                addMessage('Disconnected', 'system');
+                sendBtn.disabled = true;
+                
+                // If closed due to auth error, redirect to login
+                if (event.code === 1008) {
+                    showToast('Session expired. Please log in again.', 'error');
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 2000);
+                }
             }
         };
         
