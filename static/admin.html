@@ -4,80 +4,74 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Cortex Platform</title>
+    
+    <!-- Design System -->
+    <link rel="stylesheet" href="/design-tokens.css">
+    <link rel="stylesheet" href="/components.css">
+    
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            background: var(--color-bg-primary);
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+            padding: var(--spacing-6);
+            box-shadow: var(--shadow-sm);
+            border-bottom: 1px solid var(--color-border-default);
         }
 
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
+        .header-content {
+            max-width: 1280px;
+            margin: 0 auto;
         }
 
-        .header p {
-            font-size: 14px;
-            opacity: 0.9;
+        .header-title {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--spacing-1);
+            letter-spacing: var(--letter-spacing-tight);
+        }
+
+        .header-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            font-weight: var(--font-weight-medium);
         }
 
         .container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
+            max-width: 1280px;
+            margin: var(--spacing-6) auto;
+            padding: 0 var(--spacing-6);
         }
 
         .nav {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
+            background: var(--color-surface-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-4);
+            margin-bottom: var(--spacing-6);
             display: flex;
-            gap: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            gap: var(--spacing-2);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-border-default);
         }
 
-        .nav button {
-            padding: 10px 20px;
-            background: #f0f0f0;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .nav button.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .nav button:hover {
-            background: #e0e0e0;
-        }
-
-        .nav button.active:hover {
-            background: #5568d3;
+        .nav .btn-secondary {
+            margin-left: auto;
         }
 
         .section {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            background: var(--color-surface-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-6);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-border-default);
             display: none;
         }
 
@@ -85,218 +79,162 @@
             display: block;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        th {
-            background: #f9f9f9;
-            font-weight: 600;
-            color: #666;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-
-        .btn:hover {
-            background: #5568d3;
-        }
-
-        .btn-danger {
-            background: #f44336;
-        }
-
-        .btn-danger:hover {
-            background: #d32f2f;
-        }
-
-        .btn-small {
-            padding: 4px 12px;
-            font-size: 12px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal.active {
+        .section-header {
             display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-6);
         }
 
-        .modal-content {
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
+        .section-title {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
         }
 
-        .modal h2 {
-            margin-bottom: 20px;
+        .code-block {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-4);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-sm);
+            word-break: break-all;
+            margin: var(--spacing-3) 0;
+            color: var(--color-text-primary);
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 4px;
-            font-size: 14px;
+        .table-actions {
+            display: flex;
+            gap: var(--spacing-2);
+            align-items: center;
         }
 
         .form-actions {
             display: flex;
-            gap: 10px;
-            margin-top: 20px;
+            gap: var(--spacing-3);
+            margin-top: var(--spacing-6);
         }
 
-        .code-block {
-            background: #f5f5f5;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            word-break: break-all;
-            margin: 10px 0;
+        .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            font-size: var(--font-size-base);
+            font-family: var(--font-sans);
         }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
+        .modal-header-warning {
+            background: var(--color-warning-light);
+            border-color: var(--color-warning);
         }
 
-        .badge-admin {
-            background: #667eea;
-            color: white;
+        .modal-header-warning .modal-title {
+            color: var(--color-warning-dark);
         }
 
-        .badge-user {
-            background: #4caf50;
-            color: white;
-        }
-
-        .badge-active {
-            background: #4caf50;
-            color: white;
-        }
-
-        .badge-inactive {
-            background: #9e9e9e;
-            color: white;
+        [data-theme="light"] .modal-header-warning {
+            background: var(--color-warning-light);
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🧠 Cortex Admin</h1>
-        <p>User and API Key Management</p>
+        <div class="header-content">
+            <h1 class="header-title">CORTEX</h1>
+            <p class="header-subtitle">User and API Key Management</p>
+        </div>
     </div>
 
     <div class="container">
         <div class="nav">
-            <button class="active" onclick="showSection('users')">Users</button>
-            <button onclick="showSection('apikeys')">API Keys</button>
-            <button onclick="logout()" style="margin-left: auto;">Logout</button>
+            <button class="btn btn-secondary active" onclick="showSection('users')">Users</button>
+            <button class="btn btn-secondary" onclick="showSection('apikeys')">API Keys</button>
+            <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
         </div>
 
         <!-- Users Section -->
         <div id="users" class="section active">
-            <h2>Users</h2>
-            <button class="btn" onclick="showCreateUserModal()">Create User</button>
-            <table id="usersTable">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <div class="section-header">
+                <h2 class="section-title">Users</h2>
+                <button class="btn btn-primary" onclick="showCreateUserModal()">Create User</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="usersTable" class="table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
 
         <!-- API Keys Section -->
         <div id="apikeys" class="section">
-            <h2>API Keys</h2>
-            <button class="btn" onclick="showCreateAPIKeyModal()">Generate API Key</button>
-            <table id="apikeysTable">
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Name</th>
-                        <th>Prefix</th>
-                        <th>Status</th>
-                        <th>Last Used</th>
-                        <th>Expires</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <div class="section-header">
+                <h2 class="section-title">API Keys</h2>
+                <button class="btn btn-primary" onclick="showCreateAPIKeyModal()">Generate API Key</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="apikeysTable" class="table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Name</th>
+                            <th>Prefix</th>
+                            <th>Status</th>
+                            <th>Last Used</th>
+                            <th>Expires</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <!-- Create User Modal -->
     <div id="createUserModal" class="modal">
-        <div class="modal-content">
-            <h2>Create User</h2>
+        <div class="modal-overlay" onclick="closeModal('createUserModal')"></div>
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Create User</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeModal('createUserModal')">
+                    ✕
+                </button>
+            </div>
             <form id="createUserForm">
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="newUsername" required>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="newUsername">Username</label>
+                        <input type="text" id="newUsername" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="newEmail">
+                            Email <span class="form-label-optional">(optional)</span>
+                        </label>
+                        <input type="email" id="newEmail" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="newPassword">Password</label>
+                        <input type="password" id="newPassword" class="form-input" required minlength="8">
+                        <div class="form-hint">Minimum 8 characters</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Email (optional)</label>
-                    <input type="email" id="newEmail">
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="newPassword" required>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn">Create</button>
-                    <button type="button" class="btn btn-danger" onclick="closeModal('createUserModal')">Cancel</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
                 </div>
             </form>
         </div>
@@ -304,24 +242,34 @@
 
     <!-- Create API Key Modal -->
     <div id="createAPIKeyModal" class="modal">
-        <div class="modal-content">
-            <h2>Generate API Key</h2>
+        <div class="modal-overlay" onclick="closeModal('createAPIKeyModal')"></div>
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title">Generate API Key</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeModal('createAPIKeyModal')">
+                    ✕
+                </button>
+            </div>
             <form id="createAPIKeyForm">
-                <div class="form-group">
-                    <label>User</label>
-                    <select id="apiKeyUser" required></select>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="apiKeyUser">User</label>
+                        <select id="apiKeyUser" class="form-select" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="apiKeyName">Name</label>
+                        <input type="text" id="apiKeyName" class="form-input" placeholder="e.g., Windows Desktop" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="apiKeyExpires">
+                            Expires (days) <span class="form-label-optional">(optional)</span>
+                        </label>
+                        <input type="number" id="apiKeyExpires" class="form-input" placeholder="Leave empty for no expiration">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Name (e.g., "Windows Desktop")</label>
-                    <input type="text" id="apiKeyName" required>
-                </div>
-                <div class="form-group">
-                    <label>Expires (days, optional)</label>
-                    <input type="number" id="apiKeyExpires" placeholder="Leave empty for no expiration">
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn">Generate</button>
-                    <button type="button" class="btn btn-danger" onclick="closeModal('createAPIKeyModal')">Cancel</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createAPIKeyModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Generate</button>
                 </div>
             </form>
         </div>
@@ -329,13 +277,23 @@
 
     <!-- API Key Result Modal -->
     <div id="apiKeyResultModal" class="modal">
-        <div class="modal-content">
-            <h2>⚠️ Save This API Key</h2>
-            <p>This key will only be shown once. Copy it now and store it securely.</p>
-            <div class="code-block" id="apiKeyValue"></div>
-            <div class="form-actions">
-                <button class="btn" onclick="copyAPIKey()">Copy to Clipboard</button>
-                <button class="btn btn-danger" onclick="closeModal('apiKeyResultModal')">Close</button>
+        <div class="modal-overlay" onclick="closeModal('apiKeyResultModal')"></div>
+        <div class="modal-container">
+            <div class="modal-header modal-header-warning">
+                <h2 class="modal-title">Save This API Key</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeModal('apiKeyResultModal')">
+                    ✕
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    This key will only be shown once. Copy it now and store it securely.
+                </div>
+                <div class="code-block" id="apiKeyValue"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="copyAPIKey()">Copy to Clipboard</button>
+                <button class="btn btn-primary" onclick="closeModal('apiKeyResultModal')">Done</button>
             </div>
         </div>
     </div>
@@ -379,7 +337,7 @@
 
         function showSection(name) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.nav .btn-secondary').forEach(b => b.classList.remove('active'));
             
             document.getElementById(name).classList.add('active');
             event.target.classList.add('active');
@@ -400,7 +358,9 @@
                         <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
                         <td>${new Date(user.created_at).toLocaleDateString()}</td>
                         <td>
-                            ${user.is_active ? `<button class="btn btn-small btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>` : ''}
+                            <div class="table-actions">
+                                ${user.is_active ? `<button class="btn btn-sm btn-danger" onclick="disableUser('${user.id}', '${user.username}')">Disable</button>` : ''}
+                            </div>
                         </td>
                     </tr>
                 `).join('');
@@ -427,7 +387,9 @@
                                 <td>${key.last_used ? new Date(key.last_used).toLocaleDateString() : 'Never'}</td>
                                 <td>${key.expires_at ? new Date(key.expires_at).toLocaleDateString() : 'Never'}</td>
                                 <td>
-                                    ${key.is_active ? `<button class="btn btn-small btn-danger" onclick="revokeAPIKey('${user.id}', '${key.id}')">Revoke</button>` : ''}
+                                    <div class="table-actions">
+                                        ${key.is_active ? `<button class="btn btn-sm btn-danger" onclick="revokeAPIKey('${user.id}', '${key.id}')">Revoke</button>` : ''}
+                                    </div>
                                 </td>
                             </tr>
                         `;
@@ -532,7 +494,7 @@
 
         function copyAPIKey() {
             navigator.clipboard.writeText(currentAPIKey);
-            alert('API key copied to clipboard!');
+            alert('API key copied to clipboard');
         }
 
         function logout() {
