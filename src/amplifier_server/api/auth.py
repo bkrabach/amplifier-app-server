@@ -47,6 +47,15 @@ async def is_bootstrap_mode(user_store: UserStore = Depends(get_user_store)) -> 
     return count == 0
 
 
+@router.options("/register")
+@router.options("/login")
+@router.options("/refresh")
+@router.options("/logout")
+async def auth_options():
+    """Handle CORS preflight for auth endpoints."""
+    return {}
+
+
 @router.post("/register")
 async def register(
     request: RegisterRequest,
@@ -73,7 +82,7 @@ async def register(
 
     # First user becomes admin
     from amplifier_server.auth.models import UserRole
-    
+
     role = UserRole.ADMIN if bootstrap else UserRole.USER
 
     try:
