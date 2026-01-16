@@ -76,6 +76,8 @@ class LoginResponse(BaseModel):
     refresh_token: str
     token_type: str = "Bearer"
     expires_in: int
+    username: str
+    role: str
 
 
 class RefreshRequest(BaseModel):
