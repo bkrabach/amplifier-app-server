@@ -284,10 +284,9 @@
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
         import { api } from './js/api.js';
-        import { showModal, closeModal } from './js/modal.js';
-        import { showToast } from './js/ui.js';
-        import { confirmModal } from './js/modal.js';
-        import { getFormData, setButtonLoading } from './js/ui.js';
+        import { showModal, closeModal, confirmModal } from './js/modal.js';
+        import { showToast, setButtonLoading } from './js/ui.js';
+        import { getFormData } from './js/forms.js';
 
         // Check authentication
         requireAuth();
