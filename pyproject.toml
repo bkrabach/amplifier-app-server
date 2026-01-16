@@ -28,6 +28,10 @@ dependencies = [
     "pydantic-settings>=2.0",
     "pyyaml>=6.0",
     
+    # Authentication
+    "bcrypt>=4.0",
+    "pyjwt>=2.8",
+    
     # CLI
     "click>=8.1",
     "rich>=13.0",
