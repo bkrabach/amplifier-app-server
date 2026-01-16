@@ -113,6 +113,7 @@
             </div>
         </div>
         <div class="header-actions">
+            <a href="/admin.html" id="adminLink" class="btn btn-ghost btn-sm" style="display: none;">Admin</a>
             <span class="user-info" id="userInfo"></span>
             <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
         </div>
@@ -140,6 +141,7 @@
         // Check authentication
         const token = localStorage.getItem('access_token');
         const username = localStorage.getItem('username');
+        const userRole = localStorage.getItem('user_role');
         
         if (!token) {
             window.location.href = '/login.html';
@@ -148,6 +150,11 @@
         // Display username
         if (username) {
             userInfo.textContent = username;
+        }
+        
+        // Show admin link for admin users
+        if (userRole === 'admin') {
+            document.getElementById('adminLink').style.display = 'inline-block';
         }
         
         // WebSocket connection with JWT token

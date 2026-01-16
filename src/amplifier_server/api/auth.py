@@ -143,6 +143,8 @@ async def login(
         refresh_token=refresh_token_value,
         token_type="Bearer",
         expires_in=JWT_EXPIRY_MINUTES * 60,
+        username=user.username,
+        role=user.role.value,
     )
 
 
