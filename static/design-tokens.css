@@ -136,6 +136,34 @@
   --color-link-hover: var(--color-indigo-300);
   
   --color-focus: var(--color-indigo-500);
+  
+  /* ==================== Z-Index Scale ==================== */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-loading: 1200;
+  
+  /* ==================== Alpha Color Variants ==================== */
+  --color-indigo-alpha-5: rgba(79, 70, 229, 0.05);
+  --color-indigo-alpha-10: rgba(79, 70, 229, 0.1);
+  --color-indigo-alpha-15: rgba(79, 70, 229, 0.15);
+  --color-indigo-alpha-20: rgba(79, 70, 229, 0.2);
+  
+  /* ==================== Overlay/Backdrop ==================== */
+  --color-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay: rgba(15, 23, 42, 0.8);
+  
+  /* ==================== Touch Targets ==================== */
+  --touch-target-min: 44px;
+  
+  /* ==================== Scrollbar ==================== */
+  --scrollbar-width: 8px;
+  --scrollbar-thumb: var(--color-bg-tertiary);
+  --scrollbar-track: var(--color-bg-primary);
+  
+  /* ==================== Text on Colored Backgrounds ==================== */
+  --color-text-on-colored: #ffffff;
 }
 
 /* ==================== Light Mode Override ==================== */

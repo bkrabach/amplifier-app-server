@@ -14,7 +14,7 @@ function ensureToastContainer() {
             position: fixed;
             top: var(--spacing-4);
             right: var(--spacing-4);
-            z-index: 9999;
+            z-index: var(--z-toast);
             display: flex;
             flex-direction: column;
             gap: var(--spacing-2);
@@ -59,11 +59,11 @@ export function showLoading(message = 'Loading...') {
     loadingOverlay.style.cssText = `
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.8);
+        background: var(--color-overlay);
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: var(--z-loading);
     `;
     
     loadingOverlay.innerHTML = `

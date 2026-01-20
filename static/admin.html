@@ -19,36 +19,6 @@
             background: var(--color-bg-primary);
         }
 
-        .header {
-            background: var(--color-bg-secondary);
-            color: var(--color-text-primary);
-            padding: var(--spacing-6);
-            box-shadow: var(--shadow-sm);
-            border-bottom: 1px solid var(--color-border-default);
-        }
-
-        .header-content {
-            max-width: 1280px;
-            margin: 0 auto;
-        }
-
-        .header-title {
-            font-size: var(--font-size-3xl);
-            font-weight: var(--font-weight-bold);
-            margin-bottom: var(--spacing-1);
-            letter-spacing: var(--letter-spacing-tight);
-        }
-
-        .header-subtitle {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-secondary);
-            font-weight: var(--font-weight-medium);
-        }
-
-        .nav .btn-secondary {
-            margin-left: auto;
-        }
-
         .section {
             background: var(--color-surface-primary);
             border-radius: var(--radius-lg);
@@ -125,18 +95,12 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-content">
-            <h1 class="header-title">CORTEX</h1>
-            <p class="header-subtitle">User and API Key Management</p>
-        </div>
-    </div>
+    <div id="app-header"></div>
 
     <div class="container">
-        <div class="nav">
+        <div class="nav cluster cluster-md" style="margin-bottom: var(--spacing-6);">
             <button class="btn btn-secondary active" onclick="showSection('users')">Users</button>
             <button class="btn btn-secondary" onclick="showSection('apikeys')">API Keys</button>
-            <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
         </div>
 
         <!-- Users Section -->
@@ -253,15 +217,25 @@
     </div>
 
     <script type="module">
-        import { requireAuth, logout } from './js/auth.js';
+        import { requireAuth, logout, getCurrentUser } from './js/auth.js';
         import { api } from './js/api.js';
         import { showModal, closeModal, confirmModal } from './js/modal.js';
         import { showToast, setButtonLoading, renderSkeleton } from './js/ui.js';
         import { getFormData } from './js/forms.js';
         import { renderTableWithActions, renderBadge, formatDate } from './js/table.js';
+        import { initHeader } from './components/header.js';
 
         // Check authentication
         requireAuth();
+
+        // Initialize header with current user
+        const currentUser = getCurrentUser();
+        initHeader('#app-header', {
+            title: 'CORTEX',
+            subtitle: 'Admin Panel',
+            user: currentUser,
+            showAdminLink: false
+        });
 
         let currentAPIKey = '';
 
@@ -283,9 +257,6 @@
                 }
             });
         });
-
-        // Logout handler
-        document.getElementById('logoutBtn').addEventListener('click', logout);
 
         // Section navigation
         window.showSection = function(name) {

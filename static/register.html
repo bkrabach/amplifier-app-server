@@ -14,94 +14,22 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <style>
-        body {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: var(--spacing-6);
-        }
-
-        .register-container {
-            background: var(--color-surface-primary);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-2xl);
-            max-width: 400px;
-            width: 100%;
-            padding: var(--spacing-10);
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: var(--spacing-8);
-        }
-
-        .logo-text {
-            font-size: var(--font-size-4xl);
-            font-weight: var(--font-weight-bold);
-            color: var(--color-text-primary);
-            letter-spacing: var(--letter-spacing-tight);
-            margin-bottom: var(--spacing-2);
-        }
-
-        .logo-tagline {
-            color: var(--color-text-secondary);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
-        }
-
-        .bootstrap-banner {
-            background: var(--color-indigo-600);
-            color: white;
-            padding: var(--spacing-4);
-            border-radius: var(--radius-md);
-            margin-bottom: var(--spacing-6);
-            text-align: center;
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
-        }
-
-        .bootstrap-banner strong {
-            display: block;
-            font-size: var(--font-size-base);
-            margin-bottom: var(--spacing-1);
-            font-weight: var(--font-weight-semibold);
-        }
-
-        .login-link {
-            text-align: center;
-            margin-top: var(--spacing-6);
-            color: var(--color-text-secondary);
-            font-size: var(--font-size-sm);
-        }
-
-        .login-link a {
-            color: var(--color-link);
-            text-decoration: none;
-            font-weight: var(--font-weight-medium);
-        }
-
-        .login-link a:hover {
-            text-decoration: underline;
-            color: var(--color-link-hover);
-        }
-    </style>
+    <!-- Auth styles now in components.css -->
 </head>
-<body>
-    <div class="register-container">
-        <div class="logo">
-            <h1 class="logo-text">CORTEX</h1>
-            <p class="logo-tagline">Intelligent Orchestration</p>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-logo">
+            <h1 class="auth-logo-text">CORTEX</h1>
+            <p class="auth-logo-tagline">Intelligent Orchestration</p>
         </div>
 
-        <div id="bootstrapBanner" class="bootstrap-banner" style="display: none;">
+        <div id="bootstrapBanner" class="auth-banner is-hidden">
             <strong>Initial Setup</strong>
             Creating the first admin account
         </div>
 
-        <div id="error" class="alert alert-error" style="display: none;"></div>
-        <div id="success" class="alert alert-success" style="display: none;"></div>
+        <div id="error" class="alert alert-error is-hidden"></div>
+        <div id="success" class="alert alert-success is-hidden"></div>
 
         <form id="registerForm">
             <div class="form-group">
@@ -150,15 +78,14 @@
             </button>
         </form>
 
-        <div class="login-link">
+        <div class="auth-link">
             Already have an account? <a href="/login.html">Log In</a>
         </div>
     </div>
 
     <script type="module">
         import { setTokens } from './js/auth.js';
-        import { showToast } from './js/ui.js';
-        import { setButtonLoading } from './js/ui.js';
+        import { showToast, setButtonLoading } from './js/ui.js';
 
         const API_BASE = window.location.origin;
 
@@ -173,7 +100,7 @@
                 
                 // If we can see the endpoint, assume we might be in bootstrap
                 // Show the banner - actual bootstrap check happens on submit
-                document.getElementById('bootstrapBanner').style.display = 'block';
+                document.getElementById('bootstrapBanner').classList.remove('is-hidden');
             } catch (error) {
                 console.log('Bootstrap check failed');
             }
@@ -191,8 +118,8 @@
             const errorDiv = document.getElementById('error');
             const successDiv = document.getElementById('success');
             
-            errorDiv.style.display = 'none';
-            successDiv.style.display = 'none';
+            errorDiv.classList.add('is-hidden');
+            successDiv.classList.add('is-hidden');
             setButtonLoading(registerBtn, true, 'Registering...');
 
             try {
@@ -261,7 +188,7 @@
                 
             } catch (error) {
                 errorDiv.textContent = error.message;
-                errorDiv.style.display = 'block';
+                errorDiv.classList.remove('is-hidden');
                 setButtonLoading(registerBtn, false);
             }
         });
