@@ -17,7 +17,7 @@ Always-on AI agent runtime with HTTP/WebSocket API. Hosts persistent Amplifier s
 uv pip install -e .
 
 # Run server
-amplifier-server run --port 8420
+amplifier-server run --port 19420
 
 # With a bundle loaded on startup
 amplifier-server run --bundle foundation
@@ -181,7 +181,7 @@ Environment variables (prefix: `AMPLIFIER_SERVER_`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AMPLIFIER_SERVER_HOST` | `0.0.0.0` | Host to bind to |
-| `AMPLIFIER_SERVER_PORT` | `8420` | Port to listen on |
+| `AMPLIFIER_SERVER_PORT` | `19420` | Port to listen on |
 | `AMPLIFIER_SERVER_DATA_DIR` | `~/.amplifier-server` | Data directory |
 | `AMPLIFIER_SERVER_DEFAULT_BUNDLE` | `foundation` | Default bundle |
 
@@ -190,7 +190,7 @@ Or use a config file:
 ```yaml
 # config.yaml
 host: "0.0.0.0"
-port: 8420
+port: 19420
 data_dir: "~/.amplifier-server"
 default_bundle: "foundation"
 startup_bundles:
@@ -209,10 +209,10 @@ Always-on AI assistant that receives notifications from all your devices:
 amplifier-server run --bundle attention-firewall
 
 # On Windows devices
-attention-firewall client --server hub.tailnet:8420
+attention-firewall client --server hub.tailnet:19420
 
 # Chat from anywhere
-amplifier-server chat personal-hub --server hub.tailnet:8420
+amplifier-server chat personal-hub --server hub.tailnet:19420
 ```
 
 ### Team Bot
@@ -220,7 +220,7 @@ amplifier-server chat personal-hub --server hub.tailnet:8420
 Shared AI assistant for a team:
 
 ```bash
-amplifier-server run --bundle code-review --port 8420
+amplifier-server run --bundle code-review --port 19420
 # Team members connect via web UI or CLI
 ```
 

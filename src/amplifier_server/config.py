@@ -14,7 +14,7 @@ class ServerConfig(BaseSettings):
 
     # Server settings
     host: str = Field(default="0.0.0.0", description="Host to bind to")
-    port: int = Field(default=8420, description="Port to listen on")
+    port: int = Field(default=19420, description="Port to listen on")
 
     # Data settings
     data_dir: Path = Field(

@@ -40,7 +40,7 @@ class AmplifierServer:
         self,
         data_dir: Path | str = "~/.amplifier-server",
         host: str = "0.0.0.0",
-        port: int = 8420,
+        port: int = 19420,
         cors_origins: list[str] | None = None,
         jwt_secret: str | None = None,
     ):
@@ -363,7 +363,7 @@ class AmplifierServer:
 def create_server(
     data_dir: str | Path = "~/.amplifier-server",
     host: str = "0.0.0.0",
-    port: int = 8420,
+    port: int = 19420,
     **kwargs,
 ) -> AmplifierServer:
     """Create an Amplifier Server instance.

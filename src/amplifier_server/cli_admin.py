@@ -68,7 +68,7 @@ def init_admin(username: str, password: str, email: str | None, data_dir: str):
         console.print(
             "\n[bold]Next steps:[/bold]\n"
             f"1. Start server: amplifier-server\n"
-            f"2. Login at: http://localhost:8420/login\n"
+            f"2. Login at: http://localhost:19420/login\n"
             f"3. Username: {username}\n"
         )
 

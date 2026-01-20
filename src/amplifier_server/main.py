@@ -42,7 +42,7 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 )
 @click.option(
     "--port",
-    default=8420,
+    default=19420,
     type=int,
     help="Port to listen on",
 )
@@ -107,7 +107,7 @@ def run(
 @cli.command()
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 def status(server: str) -> None:
@@ -133,7 +133,7 @@ def status(server: str) -> None:
 @cli.command()
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 def sessions(server: str) -> None:
@@ -175,7 +175,7 @@ def sessions(server: str) -> None:
 @cli.command()
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 def devices(server: str) -> None:
@@ -217,7 +217,7 @@ def devices(server: str) -> None:
 @click.argument("bundle")
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 @click.option(
@@ -254,7 +254,7 @@ def create(bundle: str, server: str, session_id: str | None) -> None:
 @click.argument("prompt")
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 def execute(session_id: str, prompt: str, server: str) -> None:
@@ -286,7 +286,7 @@ def execute(session_id: str, prompt: str, server: str) -> None:
 @click.argument("session_id")
 @click.option(
     "--server",
-    default="http://localhost:8420",
+    default="http://localhost:19420",
     help="Server URL",
 )
 def chat(session_id: str, server: str) -> None:
