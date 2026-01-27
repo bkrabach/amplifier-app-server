@@ -9,19 +9,24 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from amplifier_server.alarm_store import AlarmStore
 from amplifier_server.api import chat as chat_api
 from amplifier_server.api import (
     chat_router,
     devices_router,
     notifications_router,
     sessions_router,
+    triage_router,
     websocket_router,
 )
 from amplifier_server.api import devices as devices_api
 from amplifier_server.api import notifications as notifications_api
 from amplifier_server.api import sessions as sessions_api
+from amplifier_server.api import triage as triage_api
 from amplifier_server.api import websocket as websocket_api
+from amplifier_server.cortex_scheduler import CortexScheduler
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.feedback_store import FeedbackStore
 from amplifier_server.llm_scorer import LLMScorer
 from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
 from amplifier_server.notification_store import NotificationStore
@@ -79,6 +84,13 @@ class AmplifierServer:
         self.device_manager = DeviceManager()
         self.notification_store = NotificationStore(self.data_dir / "notifications.db")
 
+        # Triage system stores (share same DB as notifications)
+        self.alarm_store = AlarmStore(self.data_dir / "notifications.db")
+        self.feedback_store = FeedbackStore(self.data_dir / "notifications.db")
+
+        # Cortex scheduler (initialized after stores)
+        self.cortex_scheduler: CortexScheduler | None = None
+
         # Scoring configuration
         self.scoring_config = ScoringConfig(
             # Add your name/aliases for mention detection
@@ -126,8 +138,21 @@ class AmplifierServer:
             else:
                 logger.info(f"Found {user_count} user(s)")
 
-            # Initialize notification store
+            # Initialize notification store (also runs migrations for triage tables)
             await self.notification_store.initialize()
+
+            # Initialize triage stores (share same DB, tables created by notification store)
+            await self.alarm_store.initialize()
+            await self.feedback_store.initialize()
+
+            # Initialize and start Cortex scheduler
+            self.cortex_scheduler = CortexScheduler(
+                notification_store=self.notification_store,
+                alarm_store=self.alarm_store,
+                on_alarm_triggered=self._handle_alarm_triggered,
+                on_items_expiring=self._handle_items_expiring,
+            )
+            await self.cortex_scheduler.start()
 
             # Start notification processor
             await self.notification_processor.start()
@@ -141,10 +166,14 @@ class AmplifierServer:
             yield
 
             logger.info("Amplifier Server shutting down")
+            if self.cortex_scheduler:
+                await self.cortex_scheduler.stop()
             await self.notification_processor.stop()
             if self.llm_scorer:
                 await self.llm_scorer.cleanup()
             await self.notification_store.close()
+            await self.alarm_store.close()
+            await self.feedback_store.close()
             await self.user_store.close()
             await self.session_manager.shutdown()
 
@@ -177,6 +206,7 @@ class AmplifierServer:
         app.include_router(sessions_router)
         app.include_router(devices_router)
         app.include_router(notifications_router)
+        app.include_router(triage_router)  # Triage system endpoints
         app.include_router(websocket_router)
 
         # API root endpoint
@@ -245,6 +275,41 @@ class AmplifierServer:
 
         # Inject into Chat module
         chat_api.inject_managers(self.session_manager, self.user_store)
+
+        # Inject into Triage module
+        triage_api.inject_stores(self.notification_store, self.feedback_store)
+
+    async def _handle_alarm_triggered(self, alarm: dict[str, Any]) -> None:
+        """Handle a triggered alarm from the Cortex scheduler.
+
+        Args:
+            alarm: The alarm dict with id, reason, context, etc.
+        """
+        logger.info(f"Alarm triggered: {alarm.get('reason', 'no reason')}")
+
+        # TODO: Integrate with Cortex Core session to process the alarm
+        # For now, just log it
+        context = alarm.get("context", {})
+        if context:
+            logger.debug(f"Alarm context: {context}")
+
+    async def _handle_items_expiring(self, items: list[dict[str, Any]]) -> None:
+        """Handle notification of items expiring soon.
+
+        Args:
+            items: List of triage items that are expiring soon
+        """
+        if not items:
+            return
+
+        logger.info(f"{len(items)} triage items expiring soon")
+
+        # TODO: Integrate with active displays/sessions to show warning
+        # For now, just log them
+        for item in items[:5]:  # Log first 5
+            logger.debug(
+                f"Expiring: {item.get('title', 'no title')} (expires: {item.get('expires_at')})"
+            )
 
     async def _init_llm_scorer(self) -> None:
         """Initialize the LLM scorer.

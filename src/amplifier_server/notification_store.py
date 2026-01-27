@@ -1,6 +1,7 @@
 """Notification storage and retrieval."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import sqlite3
@@ -11,6 +12,9 @@ from typing import Any
 from amplifier_server.models import IngestNotificationRequest
 
 logger = logging.getLogger(__name__)
+
+# Schema version for migrations
+CURRENT_SCHEMA_VERSION = 1
 
 
 class NotificationStore:
@@ -74,7 +78,108 @@ class NotificationStore:
             CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
         """)
         self._connection.commit()
+
+        # Run migrations for triage support
+        await self._run_migrations()
+
         logger.info(f"Notification store initialized at {self.db_path}")
+
+    async def _run_migrations(self) -> None:
+        """Run database migrations for triage support."""
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        async with self._lock:
+            # Create schema_version table if it doesn't exist
+            self._connection.execute("""
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )
+            """)
+            self._connection.commit()
+
+            # Get current version
+            cursor = self._connection.execute("SELECT MAX(version) FROM schema_version")
+            row = cursor.fetchone()
+            current_version = row[0] if row[0] is not None else 0
+
+            if current_version < 1:
+                await self._migrate_v1()
+                self._connection.execute(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    (1, datetime.utcnow().isoformat()),
+                )
+                self._connection.commit()
+                logger.info("Applied migration v1: triage support")
+
+    async def _migrate_v1(self) -> None:
+        """Migration v1: Add triage support columns and tables."""
+        if not self._connection:
+            return
+
+        # Add triage columns to notifications table (if not exist)
+        # SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we check first
+        cursor = self._connection.execute("PRAGMA table_info(notifications)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        new_columns = [
+            ("triage_status", "TEXT"),  # pending, handled, dismissed, expired, NULL
+            ("expires_at", "TEXT"),  # ISO timestamp when item should expire
+            ("surfaced_at", "TEXT"),  # when it was surfaced to triage queue
+            ("suggested_response", "TEXT"),  # JSON with AI-generated suggestions
+            ("quick_reaction", "TEXT"),  # emoji reaction from user
+        ]
+
+        for col_name, col_type in new_columns:
+            if col_name not in existing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE notifications ADD COLUMN {col_name} {col_type}"
+                )
+
+        # Create index for triage queries
+        self._connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_triage 
+            ON notifications(triage_status, expires_at)
+        """)
+
+        # Create alarms table
+        self._connection.executescript("""
+            CREATE TABLE IF NOT EXISTS alarms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trigger_at TEXT NOT NULL,
+                reason TEXT,
+                source TEXT DEFAULT 'cortex',
+                status TEXT DEFAULT 'pending',
+                context TEXT,
+                created_at TEXT NOT NULL,
+                triggered_at TEXT,
+                user_id TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_alarms_trigger ON alarms(trigger_at);
+            CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
+        """)
+
+        # Create user_feedback table
+        self._connection.executescript("""
+            CREATE TABLE IF NOT EXISTS user_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                notification_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                feedback_type TEXT,
+                feedback_text TEXT,
+                original_score REAL,
+                original_decision TEXT,
+                time_in_queue_seconds INTEGER,
+                created_at TEXT NOT NULL,
+                user_id TEXT,
+                FOREIGN KEY (notification_id) REFERENCES notifications(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feedback_notification 
+            ON user_feedback(notification_id);
+        """)
+
+        self._connection.commit()
 
     async def store(self, request: IngestNotificationRequest) -> int:
         """Store a notification and return its ID."""
@@ -296,6 +401,142 @@ class NotificationStore:
             lines.append("")
 
         return "\n".join(lines)
+
+    # =========================================================================
+    # Triage Methods
+    # =========================================================================
+
+    async def create_triage_item(
+        self,
+        notification_id: int,
+        expires_at: str | None = None,
+        suggested_response: dict | None = None,
+        initial_status: str = "pending",
+    ) -> None:
+        """Mark a notification as a triage item.
+
+        Args:
+            notification_id: ID of the notification to mark for triage
+            expires_at: ISO timestamp when item should expire (optional)
+            suggested_response: AI-generated suggestions as dict (optional)
+            initial_status: Initial triage status (default: 'pending').
+                           Use 'surfaced' for push notifications that user already saw.
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        now = datetime.utcnow().isoformat()
+        suggested_json = json.dumps(suggested_response) if suggested_response else None
+
+        async with self._lock:
+            self._connection.execute(
+                """
+                UPDATE notifications 
+                SET triage_status = ?, 
+                    surfaced_at = ?,
+                    expires_at = ?,
+                    suggested_response = ?
+                WHERE id = ?
+                """,
+                (initial_status, now, expires_at, suggested_json, notification_id),
+            )
+            self._connection.commit()
+
+    async def get_triage_items(
+        self, status: str = "pending", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Get triage items with specified status.
+
+        Args:
+            status: Triage status to filter by (default: 'pending')
+            limit: Maximum number of items to return
+
+        Returns:
+            List of notification dicts with triage data
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        async with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT * FROM notifications 
+                WHERE triage_status = ?
+                ORDER BY 
+                    CASE WHEN expires_at IS NOT NULL THEN 0 ELSE 1 END,
+                    expires_at ASC,
+                    surfaced_at DESC
+                LIMIT ?
+                """,
+                (status, limit),
+            )
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                item = dict(row)
+                # Parse suggested_response JSON if present
+                if item.get("suggested_response"):
+                    with contextlib.suppress(json.JSONDecodeError):
+                        item["suggested_response"] = json.loads(item["suggested_response"])
+                results.append(item)
+            return results
+
+    async def update_triage_status(
+        self,
+        notification_id: int,
+        status: str,
+        quick_reaction: str | None = None,
+    ) -> None:
+        """Update the triage status of a notification.
+
+        Args:
+            notification_id: ID of the notification to update
+            status: New triage status ('handled', 'dismissed', 'expired')
+            quick_reaction: Optional emoji reaction from user
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        async with self._lock:
+            self._connection.execute(
+                """
+                UPDATE notifications 
+                SET triage_status = ?, quick_reaction = ?
+                WHERE id = ?
+                """,
+                (status, quick_reaction, notification_id),
+            )
+            self._connection.commit()
+
+    async def expire_old_triage_items(self, before: datetime | None = None) -> int:
+        """Expire triage items that have passed their expiration time.
+
+        Args:
+            before: Expire items with expires_at before this time.
+                   Defaults to current time.
+
+        Returns:
+            Number of items expired
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        if before is None:
+            before = datetime.utcnow()
+
+        async with self._lock:
+            cursor = self._connection.execute(
+                """
+                UPDATE notifications 
+                SET triage_status = 'expired'
+                WHERE triage_status = 'pending'
+                  AND expires_at IS NOT NULL
+                  AND expires_at < ?
+                """,
+                (before.isoformat(),),
+            )
+            self._connection.commit()
+            return cursor.rowcount
 
     async def close(self) -> None:
         """Close the database connection."""

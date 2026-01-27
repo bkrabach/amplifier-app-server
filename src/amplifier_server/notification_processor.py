@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from amplifier_server.device_manager import DeviceManager
@@ -190,9 +191,90 @@ class NotificationProcessor:
             f"score={result.score:.2f}, decision={result.decision}"
         )
 
+        # Create triage entry for non-suppressed items
+        if result.decision in ("push", "summarize"):
+            # Calculate expiration (7 days default, shorter for time-sensitive)
+            expires_at = self._calculate_expiration(notification, result)
+
+            # Generate suggested response (eager generation)
+            suggested_response = None
+            if self.use_llm and self.llm_scorer:
+                suggested_response = await self._generate_suggestions(notification, result)
+
+            # Create triage item
+            # For 'push' items, mark as 'surfaced' since user saw it
+            triage_status = "surfaced" if result.decision == "push" else "pending"
+            await self.store.create_triage_item(
+                notification_id=notification_id,
+                expires_at=expires_at,
+                suggested_response=suggested_response,
+                initial_status=triage_status,
+            )
+
         # If high priority, push to device
         if result.decision == "push":
             await self._push_notification(notification, result)
+
+    def _calculate_expiration(self, notification: dict[str, Any], result: ScoringResult) -> str:
+        """Calculate expiration time based on notification type.
+
+        - Calendar/meeting items: expire after the event (default 4 hours)
+        - Time-sensitive (deadline keywords): 24 hours
+        - Default: 7 days
+
+        Args:
+            notification: The notification dict
+            result: The scoring result (unused but available for future logic)
+
+        Returns:
+            ISO format timestamp string for expiration
+        """
+        _ = result  # Available for future enhancements
+
+        # Check for calendar/meeting notifications
+        app_name = (notification.get("app_name") or "").lower()
+        content = f"{notification.get('title', '')} {notification.get('body', '')}".lower()
+
+        if "calendar" in app_name or "meeting" in content:
+            # Try to extract meeting time, default to 4 hours
+            return (datetime.utcnow() + timedelta(hours=4)).isoformat()
+
+        time_sensitive_keywords = ["deadline", "today", "eod", "end of day", "asap"]
+        if any(kw in content for kw in time_sensitive_keywords):
+            return (datetime.utcnow() + timedelta(hours=24)).isoformat()
+
+        # Default 7 days
+        return (datetime.utcnow() + timedelta(days=7)).isoformat()
+
+    async def _generate_suggestions(
+        self, notification: dict[str, Any], result: ScoringResult
+    ) -> dict[str, Any] | None:
+        """Generate suggested responses for the notification.
+
+        Args:
+            notification: The notification dict
+            result: The scoring result (unused but available for future logic)
+
+        Returns:
+            dict with:
+            - quick_replies: List of short responses
+            - detailed_response: Longer drafted response if appropriate
+            - actions: Suggested actions (e.g., "Open Teams", "Schedule follow-up")
+
+            Returns None if generation fails or LLM is not available.
+        """
+        _ = result  # Available for future enhancements
+
+        try:
+            if not self.llm_scorer:
+                return None
+
+            # Use LLM to generate suggestions
+            suggestions = await self.llm_scorer.generate_suggestions(notification)
+            return suggestions
+        except Exception as e:
+            logger.warning(f"Failed to generate suggestions: {e}")
+            return None
 
     async def _score_with_llm(self, notification: dict[str, Any]) -> ScoringResult:
         """Score notification using LLM.

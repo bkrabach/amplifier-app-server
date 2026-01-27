@@ -33,9 +33,53 @@ NOTIFICATION TO SCORE:
 - Body: {body}
 
 SCORING OUTPUT (required JSON):
-{{"score": 0.0-1.0, "decision": "push|summarize|suppress", "rationale": "brief reason", "tags": ["tag1"]}}
+{{"score": 0.0-1.0, "decision": "push|summarize|suppress",
+  "rationale": "brief reason", "tags": ["tag1"]}}
 
 Thresholds: push >= 0.6, summarize 0.3-0.6, suppress < 0.3
+
+Respond with ONLY the JSON object.
+"""
+
+# Prompt for generating suggested responses/actions
+SUGGESTION_PROMPT = """Generate helpful response suggestions for this notification.
+
+NOTIFICATION:
+- App: {app_name}
+- From: {sender}
+- Title: {title}
+- Body: {body}
+
+TASK:
+Analyze this notification and generate helpful suggestions:
+
+1. **Quick Replies** (2-3 short responses if a reply makes sense):
+   - Keep them brief (under 50 characters)
+   - Make them contextually appropriate
+   - Include both positive and neutral options
+
+2. **Detailed Response** (if warranted):
+   - Draft a more complete reply if the notification warrants one
+   - Keep it professional and concise
+   - Only include if the notification clearly needs a substantive response
+
+3. **Suggested Actions**:
+   - What actions might the user want to take?
+   - Examples: "Open Teams", "Schedule follow-up", "Add to calendar", "Mark as read"
+   - Include action type (open_app, schedule, calendar, dismiss, etc.) and label
+
+OUTPUT FORMAT (JSON only):
+{{
+  "quick_replies": ["Got it!", "I'll look into this", "Thanks for letting me know"],
+  "detailed_response": "Thank you for the update. I'll review this and get back to you shortly.",
+  "actions": [
+    {{"type": "open_app", "label": "Open in Teams"}},
+    {{"type": "schedule", "label": "Schedule follow-up"}}
+  ]
+}}
+
+If a reply doesn't make sense (e.g., system notification), return empty quick_replies and null
+for detailed_response.
 
 Respond with ONLY the JSON object.
 """
@@ -240,6 +284,88 @@ class LLMScorer:
         if rules_path is not None:
             self.rules_path = Path(rules_path)
         self._load_rules()
+
+    async def generate_suggestions(
+        self,
+        notification: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Generate suggested responses/actions for a notification.
+
+        Uses the LLM to analyze the notification and generate helpful
+        quick replies, detailed responses, and suggested actions.
+
+        Args:
+            notification: Notification data dict with title, body, sender, etc.
+
+        Returns:
+            dict with:
+            - quick_replies: List[str] - Short reply options (2-3 options)
+            - detailed_response: str | None - Drafted longer response
+            - actions: List[dict] - Suggested actions with type and label
+        """
+        if not self._initialized or not self.session_id:
+            logger.warning("Scorer not initialized, returning empty suggestions")
+            return {"quick_replies": [], "detailed_response": None, "actions": []}
+
+        prompt = SUGGESTION_PROMPT.format(
+            app_name=notification.get("app_name") or notification.get("app_id", "Unknown"),
+            sender=notification.get("sender", "Unknown"),
+            title=notification.get("title", ""),
+            body=notification.get("body", "")[:500],
+        )
+
+        try:
+            response = await self.session_manager.execute(
+                session_id=self.session_id,
+                prompt=prompt,
+            )
+
+            result = self._parse_suggestions(response)
+
+            # Clear context to keep stateless
+            await self._reset_context()
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to generate suggestions: {e}")
+            return {"quick_replies": [], "detailed_response": None, "actions": []}
+
+    def _parse_suggestions(self, response: str) -> dict[str, Any]:
+        """Parse LLM response into suggestions dict."""
+        response = response.strip()
+
+        # Handle markdown code blocks
+        if response.startswith("```"):
+            lines = response.split("\n")
+            json_lines = []
+            in_block = False
+            for line in lines:
+                if line.startswith("```"):
+                    in_block = not in_block
+                    continue
+                if in_block:
+                    json_lines.append(line)
+            response = "\n".join(json_lines)
+
+        # Try to find JSON object
+        start = response.find("{")
+        end = response.rfind("}") + 1
+        if start >= 0 and end > start:
+            json_str = response[start:end]
+            try:
+                data = json.loads(json_str)
+                # Validate and normalize the structure
+                return {
+                    "quick_replies": data.get("quick_replies", [])[:3],
+                    "detailed_response": data.get("detailed_response"),
+                    "actions": data.get("actions", [])[:5],
+                }
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse suggestions JSON: {e}")
+
+        # Return empty suggestions if parsing fails
+        return {"quick_replies": [], "detailed_response": None, "actions": []}
 
     async def cleanup(self) -> None:
         """Cleanup the scoring session."""
