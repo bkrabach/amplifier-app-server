@@ -24,6 +24,18 @@
             flex-direction: column;
         }
         
+        /* Tab panels need to fill available space */
+        .tab-panel {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+        }
+        
+        .tab-panel.active {
+            display: flex;
+        }
+        
         #chat {
             flex: 1;
             overflow-y: auto;
@@ -43,6 +55,14 @@
         
         #message-input {
             flex: 1;
+        }
+        
+        /* Triage container fills panel */
+        #triage-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         
         /* Scrollbar styling */
@@ -67,17 +87,38 @@
 <body>
     <div id="app-header"></div>
     
-    <div id="chat"></div>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="chat">
+            <span class="tab-icon">💬</span>
+            <span class="tab-label">Chat</span>
+        </button>
+        <button class="tab-btn" data-tab="triage">
+            <span class="tab-icon">📥</span>
+            <span class="tab-label">Triage</span>
+            <span class="tab-badge" id="triage-badge" style="display: none;">0</span>
+        </button>
+    </div>
     
-    <div id="input-area">
-        <input 
-            type="text" 
-            id="message-input" 
-            class="form-input" 
-            placeholder="Chat with Cortex..."
-            autocomplete="off"
-        >
-        <button id="send-btn" class="btn btn-primary" disabled>Send</button>
+    <!-- Chat Tab Panel -->
+    <div class="tab-panel active" id="chat-panel">
+        <div id="chat"></div>
+        
+        <div id="input-area">
+            <input 
+                type="text" 
+                id="message-input" 
+                class="form-input" 
+                placeholder="Chat with Cortex..."
+                autocomplete="off"
+            >
+            <button id="send-btn" class="btn btn-primary" disabled>Send</button>
+        </div>
+    </div>
+    
+    <!-- Triage Tab Panel -->
+    <div class="tab-panel" id="triage-panel">
+        <div id="triage-container"></div>
     </div>
     
     <script type="module">
@@ -178,5 +219,8 @@
         // Focus input on load
         input.focus();
     </script>
+    
+    <!-- Triage Module -->
+    <script type="module" src="/js/triage.js"></script>
 </body>
 </html>
