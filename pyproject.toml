@@ -15,6 +15,9 @@ dependencies = [
     "amplifier-core @ git+https://github.com/microsoft/amplifier-core@b0eb96c",
     "amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@1aaaf5b",
     
+    # Behavior bundles with tools
+    "attention-firewall @ git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main",
+    
     # Web framework
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",

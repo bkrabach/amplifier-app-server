@@ -34,11 +34,9 @@ tools:
   - module: tool-bash
   - module: tool-web
   - module: tool-task
-  # Attention Firewall tools
-  - module: notifications
-    source: git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main#src/attention_firewall/tools/notifications_tool.py
-  - module: policies
-    source: git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main#src/attention_firewall/tools/policies_tool.py
+  # Attention Firewall tools (from attention-firewall package)
+  - module: attention_firewall.tools.notifications_tool
+  - module: attention_firewall.tools.policies_tool
 ---
 
 # Cortex Core
