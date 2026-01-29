@@ -34,9 +34,9 @@ tools:
   - module: tool-bash
   - module: tool-web
   - module: tool-task
-  # Attention Firewall tools (from attention-firewall package)
-  - module: attention_firewall.tools.notifications_tool
-  - module: attention_firewall.tools.policies_tool
+  # Attention Firewall tools (registered via entry points)
+  - module: tool-notifications
+  - module: tool-policies
 ---
 
 # Cortex Core
