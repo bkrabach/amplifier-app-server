@@ -179,6 +179,33 @@ class SessionManager:
             self._prepared_cache[cache_key] = prepared
         return self._prepared_cache[cache_key]
 
+    async def _mount_attention_firewall_tools(self, session: Any) -> None:
+        """Mount attention-firewall tools programmatically.
+
+        The attention-firewall package uses a different structure than the expected
+        amplifier_module_* naming convention, so we mount the tools directly rather
+        than loading them via the bundle system.
+        """
+        try:
+            from attention_firewall.tools.notifications_tool import mount as mount_notifications
+            from attention_firewall.tools.policies_tool import mount as mount_policies
+
+            # Mount the tools on the session's coordinator
+            coordinator = session.coordinator
+
+            # Mount notifications tool
+            await mount_notifications(coordinator, {})
+            logger.info("Mounted tool-notifications from attention-firewall")
+
+            # Mount policies tool
+            await mount_policies(coordinator, {})
+            logger.info("Mounted tool-policies from attention-firewall")
+
+        except ImportError as e:
+            logger.warning(f"attention-firewall tools not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to mount attention-firewall tools: {e}")
+
     async def _create_amplifier_session(
         self,
         bundle_uri: str,
@@ -236,6 +263,11 @@ class SessionManager:
                 session_id=session_id,
                 parent_id=None,
             )
+
+            # Mount attention-firewall tools programmatically
+            # (They can't load via bundle because the package structure doesn't match
+            # the expected amplifier_module_* naming convention)
+            await self._mount_attention_firewall_tools(session)
 
             return session
 
