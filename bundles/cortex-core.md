@@ -34,9 +34,11 @@ tools:
   - module: tool-bash
   - module: tool-web
   - module: tool-task
-  # Attention Firewall tools (registered via entry points)
+  # Attention Firewall tools - source required for BundleModuleResolver to pre-activate
   - module: tool-notifications
+    source: git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main
   - module: tool-policies
+    source: git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main
 ---
 
 # Cortex Core
