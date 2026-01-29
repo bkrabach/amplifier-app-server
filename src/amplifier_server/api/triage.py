@@ -70,6 +70,7 @@ class TriageListResponse(BaseModel):
     surfaced: list[TriageItem] = []  # Punched through, awaiting confirmation
     expiring_soon: list[TriageItem] = []  # Expiring within 4 hours
     pending: list[TriageItem] = []  # Normal pending items
+    expired: list[TriageItem] = []  # Expired items (for review)
     total_count: int = 0
 
 
@@ -188,6 +189,7 @@ async def get_triage_items(
     - surfaced: Items that were pushed/surfaced and await user confirmation
     - expiring_soon: Pending items expiring within 4 hours
     - pending: Normal pending items not expiring soon
+    - expired: Items that have expired (for review)
     """
     # Get surfaced items
     surfaced_raw = await notification_store.get_triage_items(status="surfaced", limit=limit)
@@ -207,12 +209,18 @@ async def get_triage_items(
         else:
             pending.append(triage_item)
 
+    # Get expired items (limited to most recent 50 for review)
+    expired_raw = await notification_store.get_triage_items(status="expired", limit=50)
+    expired = [_notification_to_triage_item(n) for n in expired_raw]
+
+    # Total count excludes expired items (they're for review only)
     total_count = len(surfaced) + len(expiring_soon) + len(pending)
 
     return TriageListResponse(
         surfaced=surfaced,
         expiring_soon=expiring_soon,
         pending=pending,
+        expired=expired,
         total_count=total_count,
     )
 
@@ -430,3 +438,61 @@ async def get_triage_stats(
         expired_today=0,  # Would need date filtering in store
         feedback_stats=feedback_stats,
     )
+
+
+@router.post("/reprocess-expiration")
+async def reprocess_expiration(
+    user: User = Depends(require_auth),
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> dict[str, Any]:
+    """Re-calculate expiration for all pending triage items.
+
+    Useful after improving expiration logic to apply to existing items.
+    Uses smarter time-sensitive pattern detection to set appropriate
+    expiration times.
+    """
+    import re
+
+    # Get all pending items
+    items = await notification_store.get_triage_items(status="pending", limit=1000)
+
+    updated = 0
+    expired = 0
+
+    for item in items:
+        # Re-calculate expiration based on content
+        content = f"{item.get('title', '')} {item.get('body', '')}".lower()
+
+        now = datetime.utcnow()
+        end_of_today = now.replace(hour=23, minute=59, second=59)
+        new_expires = None
+
+        # Apply same logic as processor
+        if re.search(r"\b(tonight|this evening|this afternoon|this morning|today)\b", content):
+            new_expires = end_of_today
+        elif re.search(r"\btomorrow\b", content):
+            new_expires = end_of_today + timedelta(days=1)
+        elif re.search(r"\b(spend(ing)? the night|sleep\s*over|staying over)\b", content):
+            new_expires = end_of_today
+
+        if new_expires:
+            # Check if this should already be expired
+            if new_expires < now:
+                # Mark as expired
+                await notification_store.update_triage_status(item["id"], "expired")
+                expired += 1
+            else:
+                # Update expiration time
+                await notification_store.update_expiration(item["id"], new_expires.isoformat())
+                updated += 1
+
+    logger.info(
+        f"Reprocessed expiration: {len(items)} checked, {updated} updated, {expired} expired"
+    )
+
+    return {
+        "success": True,
+        "items_checked": len(items),
+        "items_updated": updated,
+        "items_expired": expired,
+    }

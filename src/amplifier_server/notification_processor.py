@@ -216,11 +216,16 @@ class NotificationProcessor:
             await self._push_notification(notification, result)
 
     def _calculate_expiration(self, notification: dict[str, Any], result: ScoringResult) -> str:
-        """Calculate expiration time based on notification type.
+        """Calculate expiration time based on notification content.
 
-        - Calendar/meeting items: expire after the event (default 4 hours)
-        - Time-sensitive (deadline keywords): 24 hours
-        - Default: 7 days
+        Time-sensitive patterns:
+        - "tonight", "this evening" → end of today
+        - "today", "this morning", "this afternoon" → end of today
+        - "tomorrow" → end of tomorrow
+        - "this week", "this weekend" → end of week
+        - Calendar/meeting notifications → 4 hours after assumed time
+        - Deadline keywords → 24 hours
+        - Default → 7 days
 
         Args:
             notification: The notification dict
@@ -229,22 +234,47 @@ class NotificationProcessor:
         Returns:
             ISO format timestamp string for expiration
         """
+        import re
+
         _ = result  # Available for future enhancements
 
-        # Check for calendar/meeting notifications
-        app_name = (notification.get("app_name") or "").lower()
+        now = datetime.utcnow()
         content = f"{notification.get('title', '')} {notification.get('body', '')}".lower()
+        app_name = (notification.get("app_name") or "").lower()
 
-        if "calendar" in app_name or "meeting" in content:
-            # Try to extract meeting time, default to 4 hours
-            return (datetime.utcnow() + timedelta(hours=4)).isoformat()
+        # End of today (11:59 PM)
+        end_of_today = now.replace(hour=23, minute=59, second=59)
 
-        time_sensitive_keywords = ["deadline", "today", "eod", "end of day", "asap"]
-        if any(kw in content for kw in time_sensitive_keywords):
-            return (datetime.utcnow() + timedelta(hours=24)).isoformat()
+        # Tonight / this evening / today patterns - expire at end of today
+        if re.search(r"\b(tonight|this evening|this afternoon|this morning|today)\b", content):
+            return end_of_today.isoformat()
 
-        # Default 7 days
-        return (datetime.utcnow() + timedelta(days=7)).isoformat()
+        # Tomorrow - expire at end of tomorrow
+        if re.search(r"\btomorrow\b", content):
+            return (end_of_today + timedelta(days=1)).isoformat()
+
+        # This week / this weekend
+        if re.search(r"\b(this week|this weekend)\b", content):
+            # End of this week (Sunday)
+            days_until_sunday = 6 - now.weekday()
+            if days_until_sunday < 0:
+                days_until_sunday = 0
+            return (end_of_today + timedelta(days=days_until_sunday)).isoformat()
+
+        # Spending the night / sleepover patterns (usually same-day relevance)
+        if re.search(r"\b(spend(ing)? the night|sleep\s*over|staying over)\b", content):
+            return end_of_today.isoformat()
+
+        # Calendar/meeting notifications - expire in 4 hours
+        if "calendar" in app_name or re.search(r"\b(meeting|call|appointment)\b", content):
+            return (now + timedelta(hours=4)).isoformat()
+
+        # Deadline keywords - 24 hours
+        if re.search(r"\b(deadline|urgent|asap|eod|end of day|by today|due today)\b", content):
+            return (now + timedelta(hours=24)).isoformat()
+
+        # Default: 7 days
+        return (now + timedelta(days=7)).isoformat()
 
     async def _generate_suggestions(
         self, notification: dict[str, Any], result: ScoringResult

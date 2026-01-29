@@ -6,7 +6,7 @@
 import { api } from './api.js';
 
 // State
-let triageItems = { surfaced: [], expiring_soon: [], pending: [], total_count: 0 };
+let triageItems = { surfaced: [], expiring_soon: [], pending: [], expired: [], total_count: 0 };
 let isLoading = false;
 
 /**
@@ -93,7 +93,7 @@ export async function refreshTriageItems() {
  * @param {HTMLElement} container - Container element
  */
 function renderTriageList(container) {
-    const { surfaced = [], expiring_soon = [], pending = [], total_count = 0 } = triageItems;
+    const { surfaced = [], expiring_soon = [], pending = [], expired = [], total_count = 0 } = triageItems;
     
     if (total_count === 0) {
         container.innerHTML = renderEmptyState();
@@ -115,6 +115,20 @@ function renderTriageList(container) {
     // Pending
     if (pending.length > 0) {
         html += renderSection('📬 Needs Triage', pending, 'pending');
+    }
+    
+    // Expired items (collapsed by default)
+    if (expired.length > 0) {
+        html += `
+            <details class="triage-section triage-section--expired">
+                <summary class="triage-section__header triage-section__header--expandable">
+                    🗂️ Expired (${expired.length}) - click to review
+                </summary>
+                <div class="triage-section__cards">
+                    ${expired.map(item => renderTriageCard(item)).join('')}
+                </div>
+            </details>
+        `;
     }
     
     html += '</div>';
@@ -197,6 +211,14 @@ function renderTriageCard(item) {
                     <button class="feedback-btn" data-reaction="⏰" title="Wrong timing">⏰</button>
                     <button class="feedback-btn" data-reaction="❓" title="Need more context">❓</button>
                 </div>
+            </div>
+            
+            <div class="triage-card__text-feedback">
+                <textarea 
+                    class="feedback-text-input" 
+                    placeholder="Add feedback (e.g., 'Make sender a VIP', 'Ignore all from this group')..."
+                    rows="1"
+                ></textarea>
             </div>
             
             ${item.suggested_response ? renderSuggestedActions(item.suggested_response) : ''}
@@ -294,6 +316,21 @@ function attachCardEventListeners(container) {
     container.querySelectorAll('.feedback-btn').forEach(btn => {
         btn.addEventListener('click', handleFeedbackReaction);
     });
+    
+    // Text feedback auto-grow
+    container.querySelectorAll('.feedback-text-input').forEach(textarea => {
+        textarea.addEventListener('input', autoGrowTextarea);
+    });
+}
+
+/**
+ * Auto-grow textarea as content is added
+ * @param {Event} event - Input event
+ */
+function autoGrowTextarea(event) {
+    const textarea = event.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
 }
 
 /**
@@ -312,13 +349,17 @@ async function handleTriageAction(event) {
     const selectedReaction = card.querySelector('.feedback-btn.selected');
     const quickReaction = selectedReaction?.dataset.reaction || null;
     
+    // Get text feedback
+    const feedbackText = card.querySelector('.feedback-text-input')?.value?.trim() || null;
+    
     // Disable buttons while processing
     card.classList.add('is-loading');
     
     try {
         const result = await api.post(`/triage/items/${itemId}/action`, {
             action: action,
-            quick_reaction: quickReaction
+            quick_reaction: quickReaction,
+            feedback_text: feedbackText
         });
         
         if (result.success) {

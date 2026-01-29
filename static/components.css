@@ -1111,6 +1111,59 @@ body {
 }
 
 /* ==================== Triage Components ==================== */
+/* Text Feedback Input */
+.triage-card__text-feedback {
+  margin-top: var(--spacing-2);
+}
+
+.feedback-text-input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.feedback-text-input:focus {
+  outline: none;
+  border-color: var(--color-indigo-500);
+}
+
+.feedback-text-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* Expired section styling */
+.triage-section--expired {
+  opacity: 0.7;
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-4);
+  border-top: 2px dashed var(--color-border-default);
+}
+
+.triage-section__header--expandable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.triage-section__header--expandable:hover {
+  color: var(--color-text-primary);
+}
+
+.triage-section--expired[open] {
+  opacity: 1;
+}
+
+.triage-section--expired .triage-section__cards {
+  margin-top: var(--spacing-3);
+}
+
 .triage-list {
   flex: 1;
   overflow-y: auto;

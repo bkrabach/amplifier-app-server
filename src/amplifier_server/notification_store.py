@@ -508,6 +508,23 @@ class NotificationStore:
             )
             self._connection.commit()
 
+    async def update_expiration(self, notification_id: int, expires_at: str) -> None:
+        """Update the expiration time for a triage item.
+
+        Args:
+            notification_id: ID of the notification to update
+            expires_at: ISO timestamp for new expiration time
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        async with self._lock:
+            self._connection.execute(
+                "UPDATE notifications SET expires_at = ? WHERE id = ?",
+                (expires_at, notification_id),
+            )
+            self._connection.commit()
+
     async def expire_old_triage_items(self, before: datetime | None = None) -> int:
         """Expire triage items that have passed their expiration time.
 
