@@ -177,6 +177,22 @@ def _map_action_to_status(action: str) -> str:
 # =============================================================================
 
 
+def _is_expired(item: dict[str, Any]) -> bool:
+    """Check if an item's expiration time has passed."""
+    expires_at = item.get("expires_at")
+    if not expires_at:
+        return False
+
+    try:
+        expires_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        # Make naive for comparison if needed
+        if expires_dt.tzinfo:
+            expires_dt = expires_dt.replace(tzinfo=None)
+        return expires_dt <= datetime.utcnow()
+    except (ValueError, TypeError):
+        return False
+
+
 @router.get("/items", response_model=TriageListResponse)
 async def get_triage_items(
     user: User = Depends(require_auth),
@@ -189,29 +205,48 @@ async def get_triage_items(
     - surfaced: Items that were pushed/surfaced and await user confirmation
     - expiring_soon: Pending items expiring within 4 hours
     - pending: Normal pending items not expiring soon
-    - expired: Items that have expired (for review)
+    - expired: Items that have expired (for review) - based on expires_at time
+    
+    Note: Items are categorized by their actual expiration time, not just status.
+    Items with passed expires_at are automatically shown in expired section.
     """
     # Get surfaced items
     surfaced_raw = await notification_store.get_triage_items(status="surfaced", limit=limit)
-    surfaced = [_notification_to_triage_item(n) for n in surfaced_raw]
+    surfaced = []
+    auto_expired = []  # Surfaced items that have expired
+    
+    for item in surfaced_raw:
+        if _is_expired(item):
+            auto_expired.append(_notification_to_triage_item(item))
+            # Update status in background (don't block)
+            await notification_store.update_triage_status(item["id"], "expired")
+        else:
+            surfaced.append(_notification_to_triage_item(item))
 
     # Get pending items
     pending_raw = await notification_store.get_triage_items(status="pending", limit=limit)
 
-    # Split pending into expiring_soon and regular pending
+    # Split pending into expiring_soon, regular pending, and auto-expired
     expiring_soon = []
     pending = []
 
     for item in pending_raw:
-        triage_item = _notification_to_triage_item(item)
-        if _is_expiring_soon(item):
-            expiring_soon.append(triage_item)
+        if _is_expired(item):
+            auto_expired.append(_notification_to_triage_item(item))
+            # Update status in background
+            await notification_store.update_triage_status(item["id"], "expired")
+        elif _is_expiring_soon(item):
+            expiring_soon.append(_notification_to_triage_item(item))
         else:
-            pending.append(triage_item)
+            pending.append(_notification_to_triage_item(item))
 
-    # Get expired items (limited to most recent 50 for review)
-    expired_raw = await notification_store.get_triage_items(status="expired", limit=50)
-    expired = [_notification_to_triage_item(n) for n in expired_raw]
+    # Get already-expired items (status = expired) and combine with auto-expired
+    expired_raw = await notification_store.get_triage_items(status="expired", limit=100)
+    expired = auto_expired + [_notification_to_triage_item(n) for n in expired_raw]
+    
+    # Sort expired by created_at descending (most recent first), limit to 50 for review
+    expired.sort(key=lambda x: x.created_at or "", reverse=True)
+    expired = expired[:50]
 
     # Total count excludes expired items (they're for review only)
     total_count = len(surfaced) + len(expiring_soon) + len(pending)
