@@ -11,12 +11,12 @@ authors = [
 keywords = ["amplifier", "ai", "agent", "server", "api"]
 
 dependencies = [
-    # Amplifier core - pinned to compatible versions with dual-parameter protocol
-    "amplifier-core @ git+https://github.com/microsoft/amplifier-core@b0eb96c",
-    "amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@1aaaf5b",
+    # Amplifier core (sources defined in [tool.uv.sources])
+    "amplifier-core",
+    "amplifier-foundation",
     
     # Behavior bundles with tools
-    "attention-firewall @ git+https://github.com/bkrabach/amplifier-bundle-attention-firewall@main",
+    "attention-firewall",
     
     # Web framework
     "fastapi>=0.109.0",
@@ -39,6 +39,11 @@ dependencies = [
     "click>=8.1",
     "rich>=13.0",
 ]
+
+[tool.uv.sources]
+amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
+amplifier-foundation = { git = "https://github.com/microsoft/amplifier-foundation", branch = "main" }
+attention-firewall = { git = "https://github.com/bkrabach/amplifier-bundle-attention-firewall", branch = "main" }
 
 [project.optional-dependencies]
 dev = [
