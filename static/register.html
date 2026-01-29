@@ -171,12 +171,8 @@
                             loginData.role || data.role || 'user'
                         );
                         
-                        // Redirect based on role
-                        if (data.role === 'admin' || loginData.role === 'admin') {
-                            window.location.href = '/admin.html';
-                        } else {
-                            window.location.href = '/';
-                        }
+                        // Always redirect to home page after registration
+                        window.location.href = '/';
                         
                     } catch (loginError) {
                         showToast(loginError.message, 'error');
