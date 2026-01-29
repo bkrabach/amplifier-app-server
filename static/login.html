@@ -117,13 +117,9 @@
                 // Show success toast
                 showToast('Login successful!', 'success', 1000);
                 
-                // Redirect based on role
+                // Always redirect to main page after login
                 setTimeout(() => {
-                    if (data.role === 'admin') {
-                        window.location.href = '/admin.html';
-                    } else {
-                        window.location.href = '/';
-                    }
+                    window.location.href = '/';
                 }, 1000);
                 
             } catch (error) {

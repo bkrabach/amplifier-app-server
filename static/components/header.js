@@ -18,19 +18,23 @@ export function renderHeader({
     title = 'CORTEX', 
     subtitle = 'Intelligent Orchestration',
     user = null,
-    showAdminLink = false
+    showAdminLink = false,
+    showHomeLink = true
 }) {
     return `
-        <header class="header">
-            <div class="header-brand">
-                <div>
-                    <div class="header-logo">${title}</div>
-                    ${subtitle ? `<div class="header-subtitle">${subtitle}</div>` : ''}
-                </div>
+        <header class="app-header">
+            <div class="app-header__brand">
+                <a href="/" class="app-header__logo-link">
+                    <span class="app-header__logo">${title}</span>
+                    ${subtitle ? `<span class="app-header__tagline">${subtitle}</span>` : ''}
+                </a>
             </div>
-            <div class="header-actions">
-                ${showAdminLink ? '<a href="/admin.html" class="btn btn-ghost btn-sm">Admin</a>' : ''}
-                ${user ? `<span class="user-info">${user.username}</span>` : ''}
+            <nav class="app-header__nav">
+                ${showHomeLink ? '<a href="/" class="app-header__link">Home</a>' : ''}
+                ${showAdminLink ? '<a href="/admin.html" class="app-header__link">Admin</a>' : ''}
+            </nav>
+            <div class="app-header__actions">
+                ${user ? `<span class="app-header__user">${user.username}${user.role === 'admin' ? ' <span class="app-header__badge">admin</span>' : ''}</span>` : ''}
                 <button class="btn btn-ghost btn-sm" id="header-logout-btn">Logout</button>
             </div>
         </header>
