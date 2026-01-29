@@ -193,12 +193,21 @@ class SessionManager:
             # Mount the tools on the session's coordinator
             coordinator = session.coordinator
 
+            # Get API key from environment for internal server calls
+            # This allows tools to call back to the server's REST API
+            import os
+
+            tool_config = {
+                "server_url": os.environ.get("CORTEX_SERVER_URL", "http://localhost:19420"),
+                "api_key": os.environ.get("CORTEX_API_KEY"),
+            }
+
             # Mount notifications tool
-            await mount_notifications(coordinator, {})
+            await mount_notifications(coordinator, tool_config)
             logger.info("Mounted tool-notifications from attention-firewall")
 
             # Mount policies tool
-            await mount_policies(coordinator, {})
+            await mount_policies(coordinator, tool_config)
             logger.info("Mounted tool-policies from attention-firewall")
 
         except ImportError as e:
