@@ -102,11 +102,6 @@ function renderTriageList(container) {
     
     let html = '<div class="triage-list">';
     
-    // Surfaced (punched through, need confirmation)
-    if (surfaced.length > 0) {
-        html += renderSection('⚡ Punched Through', surfaced, 'surfaced');
-    }
-    
     // Expiring soon
     if (expiring_soon.length > 0) {
         html += renderSection('⏳ Expiring Soon', expiring_soon, 'expiring');
@@ -117,15 +112,15 @@ function renderTriageList(container) {
         html += renderSection('📬 Needs Triage', pending, 'pending');
     }
     
-    // Expired items (collapsed by default)
-    if (expired.length > 0) {
+    // Surfaced (punched through) - collapsed by default
+    if (surfaced.length > 0) {
         html += `
-            <details class="triage-section triage-section--expired">
+            <details class="triage-section triage-section--surfaced">
                 <summary class="triage-section__header triage-section__header--expandable">
-                    🗂️ Expired (${expired.length}) - click to review
+                    ⚡ Punched Through (${surfaced.length}) - click to review
                 </summary>
                 <div class="triage-section__cards">
-                    ${expired.map(item => renderTriageCard(item)).join('')}
+                    ${surfaced.map(item => renderTriageCard(item)).join('')}
                 </div>
             </details>
         `;
