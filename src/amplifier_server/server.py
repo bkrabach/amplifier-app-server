@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +32,9 @@ from amplifier_server.llm_scorer import LLMScorer
 from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
 from amplifier_server.notification_store import NotificationStore
 from amplifier_server.session_manager import SessionManager
+
+# Load .env file into os.environ (for tools that need API keys)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
