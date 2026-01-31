@@ -76,6 +76,15 @@ class IngestNotificationRequest(BaseModel):
     conversation_hint: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     raw: dict[str, Any] | None = Field(default=None, description="Raw notification data")
+    # Enrichment fields for better display and context
+    app_display_name: str | None = Field(default=None, description="OS display name for the app")
+    app_package_id: str | None = Field(default=None, description="Package/bundle identifier")
+    conversation_type: str | None = Field(
+        default=None, description="Conversation type: 'direct', 'group', 'channel'"
+    )
+    conversation_name: str | None = Field(
+        default=None, description="Name of group/channel if applicable"
+    )
 
 
 class PushNotificationRequest(BaseModel):

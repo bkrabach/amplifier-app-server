@@ -26,6 +26,8 @@ class TriageItem(BaseModel):
 
     id: int
     app_name: str | None = None
+    app_id: str | None = None
+    app_display_name: str | None = None
     title: str | None = None
     body: str | None = None
     sender: str | None = None
@@ -39,6 +41,11 @@ class TriageItem(BaseModel):
     rationale: str | None = None
     created_at: str | None = None
     device_id: str | None = None
+    # Enrichment fields
+    conversation_type: str | None = None
+    conversation_name: str | None = None
+    ai_thinking: str | None = None
+    ai_tags: list[str] | None = None
 
 
 class TriageActionRequest(BaseModel):
@@ -127,9 +134,22 @@ def get_feedback_store() -> FeedbackStore:
 
 def _notification_to_triage_item(notification: dict[str, Any]) -> TriageItem:
     """Convert a notification dict to a TriageItem model."""
+    import json
+
+    # Parse ai_tags from JSON string if present
+    ai_tags = None
+    ai_tags_raw = notification.get("ai_tags")
+    if ai_tags_raw:
+        try:
+            ai_tags = json.loads(ai_tags_raw) if isinstance(ai_tags_raw, str) else ai_tags_raw
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return TriageItem(
         id=notification["id"],
         app_name=notification.get("app_name"),
+        app_id=notification.get("app_id"),
+        app_display_name=notification.get("app_display_name"),
         title=notification.get("title"),
         body=notification.get("body"),
         sender=notification.get("sender"),
@@ -143,6 +163,10 @@ def _notification_to_triage_item(notification: dict[str, Any]) -> TriageItem:
         rationale=notification.get("rationale"),
         created_at=notification.get("ingested_at"),
         device_id=notification.get("device_id"),
+        conversation_type=notification.get("conversation_type"),
+        conversation_name=notification.get("conversation_name"),
+        ai_thinking=notification.get("ai_thinking"),
+        ai_tags=ai_tags,
     )
 
 

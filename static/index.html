@@ -82,6 +82,133 @@
         #chat::-webkit-scrollbar-thumb:hover {
             background: var(--color-slate-600);
         }
+        
+        /* ==================== Conversation Badges ==================== */
+        .conversation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+        
+        .conversation-badge--group {
+            background: var(--color-purple-100);
+            color: var(--color-purple-700);
+        }
+        
+        .conversation-badge--channel {
+            background: var(--color-blue-100);
+            color: var(--color-blue-700);
+        }
+        
+        .conversation-badge--direct {
+            background: var(--color-slate-100);
+            color: var(--color-slate-600);
+        }
+        
+        /* ==================== Tags Display ==================== */
+        .triage-card__tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.375rem;
+            margin: 0.5rem 0;
+        }
+        
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            background: var(--color-slate-100);
+            color: var(--color-slate-600);
+        }
+        
+        .tag--urgent {
+            background: var(--color-red-100);
+            color: var(--color-red-700);
+        }
+        
+        .tag--vip {
+            background: var(--color-amber-100);
+            color: var(--color-amber-700);
+        }
+        
+        .tag--mention {
+            background: var(--color-green-100);
+            color: var(--color-green-700);
+        }
+        
+        .tag--action-needed {
+            background: var(--color-orange-100);
+            color: var(--color-orange-700);
+        }
+        
+        .tag--priority-app {
+            background: var(--color-blue-100);
+            color: var(--color-blue-700);
+        }
+        
+        /* ==================== AI Thinking Section ==================== */
+        .triage-card__ai-thinking {
+            margin: 0.75rem 0;
+            border: 1px solid var(--color-border-default);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+        
+        .triage-card__ai-thinking summary {
+            padding: 0.5rem 0.75rem;
+            background: var(--color-bg-secondary);
+            cursor: pointer;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            user-select: none;
+        }
+        
+        .triage-card__ai-thinking summary:hover {
+            background: var(--color-slate-100);
+        }
+        
+        .triage-card__ai-thinking[open] summary {
+            border-bottom: 1px solid var(--color-border-default);
+        }
+        
+        .ai-thinking-content {
+            padding: 0.75rem;
+            background: var(--color-bg-primary);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .ai-thinking-content pre {
+            margin: 0;
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--color-text-secondary);
+        }
+        
+        .ai-thinking-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .ai-thinking-content::-webkit-scrollbar-track {
+            background: var(--color-slate-100);
+        }
+        
+        .ai-thinking-content::-webkit-scrollbar-thumb {
+            background: var(--color-slate-300);
+            border-radius: var(--radius-full);
+        }
     </style>
 </head>
 <body>

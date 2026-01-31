@@ -173,17 +173,23 @@ class NotificationProcessor:
             return
 
         # Score the notification (LLM or heuristics)
+        ai_thinking = None
         if self.use_llm and self.llm_scorer:
             result = await self._score_with_llm(notification)
+            # Capture raw LLM response for transparency
+            if hasattr(result, "raw_response"):
+                ai_thinking = result.raw_response
         else:
             result = self._score_notification(notification)
 
-        # Update store with results
+        # Update store with results (including AI reasoning)
         await self.store.mark_processed(
             notification_id=notification_id,
             relevance_score=result.score,
             decision=result.decision,
             rationale=result.rationale,
+            ai_thinking=ai_thinking,
+            ai_tags=result.tags if result.tags else None,
         )
 
         logger.info(

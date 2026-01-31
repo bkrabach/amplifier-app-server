@@ -14,7 +14,7 @@ from amplifier_server.models import IngestNotificationRequest
 logger = logging.getLogger(__name__)
 
 # Schema version for migrations
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 class NotificationStore:
@@ -113,6 +113,15 @@ class NotificationStore:
                 self._connection.commit()
                 logger.info("Applied migration v1: triage support")
 
+            if current_version < 2:
+                await self._migrate_v2()
+                self._connection.execute(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    (2, datetime.utcnow().isoformat()),
+                )
+                self._connection.commit()
+                logger.info("Applied migration v2: notification enrichment fields")
+
     async def _migrate_v1(self) -> None:
         """Migration v1: Add triage support columns and tables."""
         if not self._connection:
@@ -181,6 +190,38 @@ class NotificationStore:
 
         self._connection.commit()
 
+    async def _migrate_v2(self) -> None:
+        """Migration v2: Add notification enrichment fields.
+
+        Adds columns for:
+        - App display name and package ID for better app identification
+        - Conversation context (type and name) for messaging apps
+        - AI reasoning (thinking and tags) for transparency
+        """
+        if not self._connection:
+            return
+
+        # Check existing columns
+        cursor = self._connection.execute("PRAGMA table_info(notifications)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        new_columns = [
+            ("app_display_name", "TEXT"),  # OS display name for the app
+            ("app_package_id", "TEXT"),  # Package/bundle identifier
+            ("conversation_type", "TEXT"),  # 'direct', 'group', 'channel'
+            ("conversation_name", "TEXT"),  # Group/channel name
+            ("ai_thinking", "TEXT"),  # Full LLM reasoning/chain-of-thought
+            ("ai_tags", "TEXT"),  # JSON array of decision factor tags
+        ]
+
+        for col_name, col_type in new_columns:
+            if col_name not in existing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE notifications ADD COLUMN {col_name} {col_type}"
+                )
+
+        self._connection.commit()
+
     async def store(self, request: IngestNotificationRequest) -> int:
         """Store a notification and return its ID."""
         if not self._connection:
@@ -191,8 +232,9 @@ class NotificationStore:
                 """
                 INSERT INTO notifications 
                 (device_id, app_id, app_name, title, body, sender, 
-                 conversation_hint, timestamp, ingested_at, raw_data, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 conversation_hint, timestamp, ingested_at, raw_data, user_id,
+                 app_display_name, app_package_id, conversation_type, conversation_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     request.device_id,
@@ -206,6 +248,10 @@ class NotificationStore:
                     datetime.utcnow().isoformat(),
                     json.dumps(request.raw) if request.raw else None,
                     self.user_id,
+                    request.app_display_name,
+                    request.app_package_id,
+                    request.conversation_type,
+                    request.conversation_name,
                 ),
             )
             self._connection.commit()
@@ -270,19 +316,34 @@ class NotificationStore:
         relevance_score: float,
         decision: str,
         rationale: str,
+        ai_thinking: str | None = None,
+        ai_tags: list[str] | None = None,
     ) -> None:
-        """Mark a notification as processed with AI results."""
+        """Mark a notification as processed with AI results.
+
+        Args:
+            notification_id: ID of the notification to update
+            relevance_score: Score from 0.0 to 1.0
+            decision: Decision string ('push', 'summarize', 'suppress')
+            rationale: Human-readable explanation
+            ai_thinking: Full LLM reasoning/chain-of-thought (optional)
+            ai_tags: List of decision factor tags (optional)
+        """
         if not self._connection:
             raise RuntimeError("Notification store not initialized")
+
+        # Serialize ai_tags to JSON if provided
+        ai_tags_json = json.dumps(ai_tags) if ai_tags else None
 
         async with self._lock:
             self._connection.execute(
                 """
                 UPDATE notifications 
-                SET processed = TRUE, relevance_score = ?, decision = ?, rationale = ?
+                SET processed = TRUE, relevance_score = ?, decision = ?, rationale = ?,
+                    ai_thinking = ?, ai_tags = ?
                 WHERE id = ?
                 """,
-                (relevance_score, decision, rationale, notification_id),
+                (relevance_score, decision, rationale, ai_thinking, ai_tags_json, notification_id),
             )
             self._connection.commit()
 

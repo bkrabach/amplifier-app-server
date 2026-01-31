@@ -152,13 +152,79 @@ function renderSection(title, items, sectionClass) {
 }
 
 /**
+ * Render conversation type badge
+ * @param {Object} item - Triage item
+ * @returns {string} HTML string for conversation badge
+ */
+function renderConversationBadge(item) {
+    if (!item.conversation_type) return '';
+    
+    const badges = {
+        'group': { icon: '👥', label: 'Group', class: 'conversation-badge--group' },
+        'channel': { icon: '#', label: 'Channel', class: 'conversation-badge--channel' },
+        'direct': { icon: '💬', label: 'DM', class: 'conversation-badge--direct' }
+    };
+    
+    const badge = badges[item.conversation_type];
+    if (!badge) return '';
+    
+    const name = item.conversation_name ? ` ${escapeHtml(item.conversation_name)}` : '';
+    return `<span class="conversation-badge ${badge.class}" title="${badge.label}">${badge.icon}${name}</span>`;
+}
+
+/**
+ * Render AI tags display
+ * @param {Array} tags - List of AI decision tags
+ * @returns {string} HTML string for tags
+ */
+function renderAITags(tags) {
+    if (!tags || !tags.length) return '';
+    
+    // Map tags to display variants
+    const tagVariants = {
+        'urgent': 'tag--urgent',
+        'vip': 'tag--vip',
+        'mention': 'tag--mention',
+        'action-needed': 'tag--action-needed',
+        'priority-app': 'tag--priority-app'
+    };
+    
+    const tagHtml = tags.map(tag => {
+        const variant = tagVariants[tag] || '';
+        return `<span class="tag ${variant}">${escapeHtml(tag)}</span>`;
+    }).join('');
+    
+    return `<div class="triage-card__tags">${tagHtml}</div>`;
+}
+
+/**
+ * Render expandable AI thinking/reasoning section
+ * @param {Object} item - Triage item
+ * @returns {string} HTML string for AI thinking section
+ */
+function renderAIThinking(item) {
+    if (!item.ai_thinking) return '';
+    
+    return `
+        <details class="triage-card__ai-thinking">
+            <summary>🧠 AI Reasoning</summary>
+            <div class="ai-thinking-content">
+                <pre>${escapeHtml(item.ai_thinking)}</pre>
+            </div>
+        </details>
+    `;
+}
+
+/**
  * Render a single triage card
  * @param {Object} item - Triage item
  * @returns {string} HTML string
  */
 function renderTriageCard(item) {
     const timeAgo = formatTimeAgo(item.created_at);
-    const appIcon = getAppIcon(item.app_name);
+    // Smart app name with fallbacks
+    const appName = item.app_name || item.app_display_name || item.app_id || 'Unknown App';
+    const appIcon = getAppIcon(appName);
     const expiresInfo = item.expires_at ? formatExpiresIn(item.expires_at) : '';
     
     return `
@@ -166,7 +232,8 @@ function renderTriageCard(item) {
             <div class="triage-card__header">
                 <span class="triage-card__app">
                     <span class="triage-card__app-icon">${appIcon}</span>
-                    ${escapeHtml(item.app_name || 'Unknown App')}
+                    ${escapeHtml(appName)}
+                    ${renderConversationBadge(item)}
                     ${item.sender ? ` · ${escapeHtml(item.sender)}` : ''}
                 </span>
                 <span class="triage-card__time">${timeAgo}</span>
@@ -177,6 +244,8 @@ function renderTriageCard(item) {
                 ${item.body ? `<div class="triage-card__body">${escapeHtml(item.body)}</div>` : ''}
             </div>
             
+            ${renderAITags(item.ai_tags)}
+            
             ${item.rationale ? `
                 <div class="triage-card__rationale">
                     <span class="triage-card__score">${(item.relevance_score * 100).toFixed(0)}%</span>
@@ -185,6 +254,8 @@ function renderTriageCard(item) {
             ` : ''}
             
             ${expiresInfo ? `<div class="triage-card__expires">${expiresInfo}</div>` : ''}
+            
+            ${renderAIThinking(item)}
             
             <div class="triage-card__actions">
                 <button class="btn btn-sm btn-primary triage-action" data-action="dealt_with">
