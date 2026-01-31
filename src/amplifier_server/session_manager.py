@@ -201,6 +201,8 @@ class SessionManager:
                 "server_url": os.environ.get("CORTEX_SERVER_URL", "http://localhost:19420"),
                 "api_key": os.environ.get("CORTEX_API_KEY"),
             }
+            api_status = "SET" if tool_config["api_key"] else "NOT SET"
+            logger.info(f"Tool config: api_key={api_status}")
 
             # Mount notifications tool
             await mount_notifications(coordinator, tool_config)
