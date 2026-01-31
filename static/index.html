@@ -180,7 +180,17 @@
         
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.error) {
+            if (data.type === 'history' && data.messages) {
+                // Load chat history on connect
+                if (data.messages.length > 0) {
+                    addMessage(`--- Previous conversation (${data.messages.length} messages) ---`, 'system');
+                    for (const msg of data.messages) {
+                        const isMarkdown = msg.role === 'assistant';
+                        addMessage(msg.content, msg.role, isMarkdown);
+                    }
+                    addMessage('--- End of history ---', 'system');
+                }
+            } else if (data.error) {
                 addMessage(`Error: ${data.error}`, 'system');
                 showToast(data.error, 'error');
             } else if (data.response) {

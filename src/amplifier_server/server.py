@@ -25,6 +25,7 @@ from amplifier_server.api import notifications as notifications_api
 from amplifier_server.api import sessions as sessions_api
 from amplifier_server.api import triage as triage_api
 from amplifier_server.api import websocket as websocket_api
+from amplifier_server.chat_store import ChatStore
 from amplifier_server.cortex_scheduler import CortexScheduler
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.feedback_store import FeedbackStore
@@ -87,6 +88,7 @@ class AmplifierServer:
         self.session_manager = SessionManager(self.data_dir / "sessions")
         self.device_manager = DeviceManager()
         self.notification_store = NotificationStore(self.data_dir / "notifications.db")
+        self.chat_store = ChatStore(self.data_dir / "chat.db")
 
         # Triage system stores (share same DB as notifications)
         self.alarm_store = AlarmStore(self.data_dir / "notifications.db")
@@ -145,6 +147,9 @@ class AmplifierServer:
             # Initialize notification store (also runs migrations for triage tables)
             await self.notification_store.initialize()
 
+            # Initialize chat store for message history
+            await self.chat_store.initialize()
+
             # Initialize triage stores (share same DB, tables created by notification store)
             await self.alarm_store.initialize()
             await self.feedback_store.initialize()
@@ -176,6 +181,7 @@ class AmplifierServer:
             if self.llm_scorer:
                 await self.llm_scorer.cleanup()
             await self.notification_store.close()
+            await self.chat_store.close()
             await self.alarm_store.close()
             await self.feedback_store.close()
             await self.user_store.close()
@@ -278,7 +284,7 @@ class AmplifierServer:
         websocket_api.inject_managers(self.session_manager, self.device_manager, self.user_store)
 
         # Inject into Chat module
-        chat_api.inject_managers(self.session_manager, self.user_store)
+        chat_api.inject_managers(self.session_manager, self.user_store, self.chat_store)
 
         # Inject into Triage module
         triage_api.inject_stores(self.notification_store, self.feedback_store)

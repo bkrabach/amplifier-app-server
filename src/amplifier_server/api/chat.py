@@ -6,6 +6,7 @@ from contextlib import suppress
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from amplifier_server.auth.user_store import UserStore
+from amplifier_server.chat_store import ChatStore
 from amplifier_server.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -15,13 +16,19 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 # Injected managers
 _session_manager: SessionManager | None = None
 _user_store: UserStore | None = None
+_chat_store: ChatStore | None = None
 
 
-def inject_managers(session_manager: SessionManager, user_store: UserStore) -> None:
-    """Inject session manager and user store."""
-    global _session_manager, _user_store
+def inject_managers(
+    session_manager: SessionManager,
+    user_store: UserStore,
+    chat_store: ChatStore | None = None,
+) -> None:
+    """Inject session manager, user store, and chat store."""
+    global _session_manager, _user_store, _chat_store
     _session_manager = session_manager
     _user_store = user_store
+    _chat_store = chat_store
 
 
 @router.websocket("/cortex")
@@ -80,6 +87,25 @@ async def chat_cortex_core(
                 )
                 logger.info(f"Created cortex-core session for user {user.id}")
 
+        # Send chat history on connect
+        if _chat_store:
+            try:
+                history = await _chat_store.get_recent_messages(
+                    user_id=user.id,
+                    session_id=core_id,
+                    limit=50,
+                )
+                if history:
+                    await websocket.send_json(
+                        {
+                            "type": "history",
+                            "messages": history,
+                        }
+                    )
+                    logger.info(f"Sent {len(history)} history messages to user {user.id}")
+            except Exception as e:
+                logger.warning(f"Failed to load chat history: {e}")
+
         # Chat loop
         while True:
             # Receive message from user
@@ -91,12 +117,30 @@ async def chat_cortex_core(
 
             logger.info(f"User {user.username} message: {message[:100]}")
 
+            # Store user message
+            if _chat_store:
+                await _chat_store.add_message(
+                    user_id=user.id,
+                    session_id=core_id,
+                    role="user",
+                    content=message,
+                )
+
             # Execute in Core session
             try:
                 response = await _session_manager.execute(
                     session_id=core_id,
                     prompt=message,
                 )
+
+                # Store assistant response (only if it's a string, not streaming)
+                if _chat_store and response and isinstance(response, str):
+                    await _chat_store.add_message(
+                        user_id=user.id,
+                        session_id=core_id,
+                        role="assistant",
+                        content=response,
+                    )
 
                 # Send response back
                 await websocket.send_json(
