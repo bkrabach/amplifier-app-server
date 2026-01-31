@@ -419,7 +419,8 @@ function updateBadgeCount() {
     const badge = document.getElementById('triage-badge');
     if (!badge) return;
     
-    const count = triageItems.total_count || 0;
+    // Only count "needs triage" items, not punched through
+    const count = triageItems.pending?.length || 0;
     badge.textContent = count;
     badge.style.display = count > 0 ? 'inline-flex' : 'none';
 }
