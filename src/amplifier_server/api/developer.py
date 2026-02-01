@@ -244,12 +244,27 @@ async def send_test_notification(
                 error="Stored but could not retrieve result",
             )
 
-        decision = notif.get("decision", "pending")
+        decision = notif.get("decision") or "pending"
         relevance_score = notif.get("relevance_score")
         rationale = notif.get("rationale")
 
-        # Check if push was delivered
-        pushed = decision == "push"
+        # Actually push to device if decision is "push"
+        pushed = False
+        if decision == "push" and _device_manager:
+            from amplifier_server.models import PushNotificationRequest
+
+            push_request = PushNotificationRequest(
+                device_id=request.device_id,
+                title=f"[TEST] {content.get('title', 'Test')}",
+                body=content.get("body", "Test notification"),
+                urgency="normal",
+                rationale=rationale,
+                app_source=content.get("app_name"),
+            )
+            results = await _device_manager.push_notification(push_request)
+            # results is dict[device_id, success_bool]
+            pushed = any(results.values()) if results else False
+            logger.info(f"Test push results: {results}")
 
         return TestNotificationResponse(
             notification_id=notification_id,
