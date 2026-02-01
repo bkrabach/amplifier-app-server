@@ -206,21 +206,114 @@ ws.onmessage = (event) => {
 ]
 ```
 
-### Developer/Debug Endpoints
+### Status & Configuration Endpoints
 
-#### GET /dev/health
-**Health check with system status.**
+#### GET /status
+**Server health and status information.**
 
 ```json
 {
   "status": "healthy",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "uptime_seconds": 3600,
   "llm_enabled": true,
   "connected_devices": 2,
   "notifications_today": 47
 }
 ```
+
+#### GET /config
+**View current notification processing configuration.**
+
+```json
+{
+  "llm_enabled": true,
+  "vip_senders": ["Kevin Scott", "Sam Schillace"],
+  "keywords": ["urgent", "deadline", "launch"],
+  "push_threshold": 0.6,
+  "focus_hours": ["09:00-12:00", "13:00-16:00"]
+}
+```
+
+#### GET /connections
+**View all WebSocket connections and their status.**
+
+Use this to verify device connectivity - check if your client's device_id matches what the server sees.
+
+```json
+{
+  "total_devices": 2,
+  "connected_count": 1,
+  "connections": [
+    {
+      "device_id": "macbook-pro-123",
+      "device_name": "MacBook Pro",
+      "platform": "macos",
+      "connected": true,
+      "connected_at": "2026-02-01T08:00:00",
+      "last_seen": "2026-02-01T09:10:00"
+    }
+  ],
+  "troubleshooting": {
+    "no_devices": "Connect via WebSocket to /ws/device/{your-device-id}",
+    "device_not_receiving": "Ensure notification device_id matches a connected device_id exactly",
+    "wrong_device_id": "The device_id in requests must match your WebSocket connection"
+  }
+}
+```
+
+### Notification Insights
+
+#### GET /notifications/decisions
+**See recent LLM scoring decisions with full reasoning.**
+
+Useful for understanding why you did or didn't receive a notification.
+
+```json
+[
+  {
+    "notification_id": 123,
+    "app_name": "WhatsApp",
+    "title": "Family Group",
+    "decision": "suppress",
+    "relevance_score": 0.25,
+    "rationale": "Group chat, casual conversation, no mentions or actions",
+    "ai_thinking": "Looking at this notification...[full reasoning]",
+    "processing_time_ms": 1250
+  }
+]
+```
+
+### Device Management
+
+#### POST /devices/{device_id}/ping
+**Send a test ping to verify device connectivity.**
+
+The device will receive a WebSocket message with `type: "ping"`. Use this to verify the connection before testing notifications.
+
+```json
+// Response (success)
+{
+  "success": true,
+  "device_id": "macbook-pro-123",
+  "message_sent": {
+    "type": "ping",
+    "payload": {"test": true, "message": "Connectivity test"}
+  },
+  "note": "Device should respond with type='pong' if working correctly"
+}
+
+// Response (not connected)
+{
+  "success": false,
+  "error": "Device 'macbook-pro-123' is not connected",
+  "hint": "Check /connections to see connected device_ids"
+}
+```
+
+### Developer/Testing Endpoints
+
+These endpoints are specifically for development and testing.
 
 #### POST /dev/test-notification
 **Send a test notification through the full pipeline.**
@@ -250,72 +343,14 @@ ws.onmessage = (event) => {
 **Test Scenarios:**
 - `vip_mention` - Simulates a message from a VIP sender
 - `urgent_keyword` - Contains urgent/deadline keywords
-- `group_chat` - Group chat message (typically suppressed)
-- `low_priority` - Low relevance content (should suppress)
-- `action_needed` - Contains action-requiring language
+- `routine_chat` - Routine chat message (typically summarized)
+- `calendar_reminder` - Time-sensitive calendar reminder
 
-#### GET /dev/recent-decisions
-**See recent LLM scoring decisions with full reasoning.**
+#### GET /dev/scenarios
+**List available test scenarios with expected behaviors.**
 
-```json
-[
-  {
-    "notification_id": 123,
-    "app_name": "WhatsApp",
-    "title": "Family Group",
-    "decision": "suppress",
-    "relevance_score": 0.25,
-    "rationale": "Group chat, casual conversation, no mentions or actions",
-    "ai_thinking": "Looking at this notification...[full reasoning]",
-    "processing_time_ms": 1250
-  }
-]
-```
-
-#### GET /dev/config
-**View current notification processing configuration.**
-
-```json
-{
-  "llm_enabled": true,
-  "vip_senders": ["Kevin Scott", "Sam Schillace"],
-  "keywords": ["urgent", "deadline", "launch"],
-  "push_threshold": 0.6,
-  "focus_hours": ["09:00-12:00", "13:00-16:00"]
-}
-```
-
-#### GET /dev/connections
-**View all WebSocket connections and their device IDs.**
-
-Use this to debug device connectivity issues - verify your client's device_id matches what the server sees.
-
-```json
-{
-  "total_devices": 2,
-  "connected_count": 1,
-  "connections": [
-    {
-      "device_id": "macbook-pro-123",
-      "device_name": "MacBook Pro",
-      "platform": "macos",
-      "connected": true,
-      "connected_at": "2026-02-01T08:00:00",
-      "last_seen": "2026-02-01T09:10:00"
-    }
-  ],
-  "troubleshooting": {
-    "no_devices": "Connect via WebSocket to /ws/device/{your-device-id}",
-    "device_not_receiving": "Ensure test notification device_id matches a connected device_id exactly",
-    "wrong_device_id": "The device_id in test-notification must match your WebSocket connection"
-  }
-}
-```
-
-#### POST /dev/ping-device
-**Send a test ping to verify device connectivity.**
-
-Query parameter: `device_id` (required)
+#### GET /dev/websocket-test
+**Get WebSocket testing instructions and example code.**
 
 ```bash
 curl -X POST "http://server:19420/dev/ping-device?device_id=macbook-pro-123" \

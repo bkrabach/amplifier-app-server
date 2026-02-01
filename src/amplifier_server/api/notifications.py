@@ -320,6 +320,48 @@ async def get_llm_status(
     }
 
 
+@router.get("/decisions")
+async def get_recent_decisions(
+    limit: int = Query(default=10, le=100),
+    user: User = Depends(require_auth),
+    notification_store: NotificationStore = Depends(get_notification_store),
+) -> list[dict[str, Any]]:
+    """
+    Get recent LLM decisions with reasoning.
+
+    Shows how the AI scored recent notifications and why it made
+    push/suppress/summarize decisions. Useful for understanding
+    why you did or didn't receive a notification.
+    """
+    notifications = await notification_store.get_recent(limit=limit)
+
+    decisions = []
+    for notif in notifications:
+        # Skip notifications without decisions yet
+        if not notif.get("decision"):
+            continue
+
+        body = notif.get("body", "")
+        body_preview = body[:100] + "..." if len(body) > 100 else body
+
+        decisions.append(
+            {
+                "notification_id": notif.get("id", 0),
+                "app_name": notif.get("app_name"),
+                "title": notif.get("title") or "",
+                "body_preview": body_preview,
+                "decision": notif.get("decision") or "pending",
+                "relevance_score": notif.get("relevance_score"),
+                "rationale": notif.get("rationale"),
+                "ai_thinking": notif.get("ai_thinking"),
+                "processing_time_ms": notif.get("processing_time_ms"),
+                "timestamp": notif.get("timestamp") or "",
+            }
+        )
+
+    return decisions
+
+
 def _format_notification_for_context(request: IngestNotificationRequest) -> str:
     """Format a notification for injection into session context."""
     parts = [

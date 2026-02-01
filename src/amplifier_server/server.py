@@ -210,9 +210,15 @@ class AmplifierServer:
         # Register routers
         from amplifier_server.api.admin import router as admin_router
         from amplifier_server.api.auth import router as auth_router
+        from amplifier_server.api.config import router as config_router
+        from amplifier_server.api.connections import router as connections_router
+        from amplifier_server.api.status import router as status_router
 
         app.include_router(auth_router)  # Auth endpoints (public)
         app.include_router(admin_router)  # Admin endpoints (protected)
+        app.include_router(status_router)  # Server status
+        app.include_router(config_router)  # Configuration
+        app.include_router(connections_router)  # WebSocket connections
         app.include_router(chat_router)
         app.include_router(sessions_router)
         app.include_router(devices_router)
@@ -229,9 +235,15 @@ class AmplifierServer:
                 "version": "0.1.0",
                 "status": "running",
                 "endpoints": {
+                    "status": "/status",
+                    "config": "/config",
+                    "connections": "/connections",
                     "sessions": "/sessions",
                     "devices": "/devices",
                     "notifications": "/notifications",
+                    "notifications_decisions": "/notifications/decisions",
+                    "triage": "/triage/items",
+                    "dev": "/dev/*",
                     "websocket_device": "/ws/device/{device_id}",
                     "websocket_chat": "/ws/chat/{session_id}",
                     "websocket_events": "/ws/events",
@@ -297,6 +309,19 @@ class AmplifierServer:
             notification_processor=self.notification_processor,
             device_manager=self.device_manager,
         )
+
+        # Inject into new API modules
+        from amplifier_server.api import config as config_api
+        from amplifier_server.api import connections as connections_api
+        from amplifier_server.api import status as status_api
+
+        status_api.inject_managers(
+            notification_store=self.notification_store,
+            notification_processor=self.notification_processor,
+            device_manager=self.device_manager,
+        )
+        config_api.inject_managers(notification_processor=self.notification_processor)
+        connections_api.inject_managers(device_manager=self.device_manager)
 
     async def _handle_alarm_triggered(self, alarm: dict[str, Any]) -> None:
         """Handle a triggered alarm from the Cortex scheduler.

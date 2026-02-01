@@ -1,8 +1,16 @@
-"""Developer API endpoints for testing and debugging."""
+"""Developer API endpoints for testing and debugging.
+
+These endpoints are specifically for development and testing purposes.
+General-purpose endpoints have been moved to their respective modules:
+- /status - Server health and status
+- /config - Configuration settings
+- /connections - WebSocket connection status
+- /notifications/decisions - LLM decision history
+- /devices/{id}/ping - Device connectivity testing
+"""
 
 import asyncio
 import logging
-import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,15 +19,13 @@ from pydantic import BaseModel
 
 from amplifier_server.auth import User, require_auth
 from amplifier_server.device_manager import DeviceManager
+from amplifier_server.models import IngestNotificationRequest
 from amplifier_server.notification_processor import NotificationProcessor
 from amplifier_server.notification_store import NotificationStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dev", tags=["developer"])
-
-# Track server start time for uptime
-_server_start_time = time.time()
 
 # Module-level storage for injected managers
 _notification_store: NotificationStore | None = None
@@ -58,111 +64,33 @@ class TestNotificationResponse(BaseModel):
     error: str | None = None
 
 
-class HealthResponse(BaseModel):
-    """Health check response."""
-
-    status: str
-    version: str
-    uptime_seconds: int
-    llm_enabled: bool
-    connected_devices: int
-    notifications_today: int
-
-
-class RecentDecision(BaseModel):
-    """A recent LLM decision."""
-
-    notification_id: int
-    app_name: str | None
-    title: str
-    body_preview: str | None
-    decision: str
-    relevance_score: float | None
-    rationale: str | None
-    ai_thinking: str | None
-    processing_time_ms: int | None
-    timestamp: str
-
-
-# Test scenarios with predefined content
-TEST_SCENARIOS = {
+# Test scenarios for development
+TEST_SCENARIOS: dict[str, dict[str, Any]] = {
     "vip_mention": {
         "app_name": "Microsoft Teams",
-        "app_id": "com.microsoft.teams",
         "title": "Kevin Scott",
         "body": "Hey, can you join a quick call about the launch? Need your input.",
-        "sender": "Kevin Scott",
-        "conversation_type": "direct",
+        "expected": "push (VIP sender + action request)",
     },
     "urgent_keyword": {
-        "app_name": "Outlook",
-        "app_id": "com.microsoft.outlook",
-        "title": "URGENT: Deadline Tomorrow",
-        "body": "The review deadline is tomorrow at 5pm. Please submit ASAP.",
-        "sender": "Project Manager",
-        "conversation_type": "direct",
+        "app_name": "Microsoft Outlook",
+        "title": "URGENT: Production Issue",
+        "body": "We have a regression in the deployment pipeline. Need immediate attention.",
+        "expected": "push (urgent keyword + action required)",
     },
-    "group_chat": {
+    "routine_chat": {
         "app_name": "WhatsApp",
-        "app_id": "com.whatsapp",
         "title": "Family Group",
-        "body": "~ Mom: Did everyone see the photos from last weekend?",
-        "sender": "Family Group",
-        "conversation_type": "group",
-        "conversation_name": "Family Group",
-    },
-    "low_priority": {
-        "app_name": "Slack",
-        "app_id": "com.slack",
-        "title": "#random",
-        "body": "Check out this funny cat video!",
-        "sender": "random-channel",
-        "conversation_type": "channel",
-        "conversation_name": "#random",
-    },
-    "action_needed": {
-        "app_name": "GitHub",
-        "app_id": "com.github.desktop",
-        "title": "PR Review Requested",
-        "body": "robotdad requested your review on PR #42: Fix critical auth bug",
-        "sender": "GitHub",
-        "conversation_type": "direct",
+        "body": "Anyone want to get dinner tonight?",
+        "expected": "summarize (routine message, no urgency)",
     },
     "calendar_reminder": {
-        "app_name": "Calendar",
-        "app_id": "com.microsoft.outlook.calendar",
-        "title": "Meeting in 15 minutes",
-        "body": "Design Review with the team - Conference Room A",
-        "sender": "Calendar",
-        "conversation_type": "direct",
+        "app_name": "Microsoft Outlook",
+        "title": "Reminder: Team Standup in 15 minutes",
+        "body": "Your meeting 'Team Standup' starts at 10:00 AM.",
+        "expected": "push (time-sensitive)",
     },
 }
-
-
-@router.get("/health", response_model=HealthResponse)
-async def health_check(user: User = Depends(require_auth)) -> HealthResponse:
-    """Get server health status with system information."""
-    connected = 0
-    today_count = 0
-
-    if _device_manager:
-        # list_devices(connected_only=True) returns only connected devices
-        connected = len(_device_manager.list_devices(connected_only=True))
-
-    if _notification_store:
-        stats = await _notification_store.get_summary_stats()
-        today_count = stats.get("today", 0)
-
-    llm_enabled = _notification_processor is not None
-
-    return HealthResponse(
-        status="healthy",
-        version="1.0.0",
-        uptime_seconds=int(time.time() - _server_start_time),
-        llm_enabled=llm_enabled,
-        connected_devices=connected,
-        notifications_today=today_count,
-    )
 
 
 @router.post("/test-notification", response_model=TestNotificationResponse)
@@ -171,341 +99,167 @@ async def send_test_notification(
     user: User = Depends(require_auth),
 ) -> TestNotificationResponse:
     """
-    Send a test notification through the full processing pipeline.
+    Send a test notification through the processing pipeline.
 
-    Use predefined scenarios or provide custom content.
+    Use predefined scenarios or custom content to test how the AI
+    scores and routes notifications. The notification will be stored
+    and processed, and if the decision is 'push', it will be sent
+    to the specified device.
+
+    Scenarios: vip_mention, urgent_keyword, routine_chat, calendar_reminder
     """
-    if not _notification_store:
-        raise HTTPException(status_code=503, detail="Notification store not available")
+    if not _notification_store or not _notification_processor:
+        raise HTTPException(
+            status_code=503,
+            detail="Notification processing not available",
+        )
 
-    # Build notification content from scenario or custom
-    if request.scenario:
-        if request.scenario not in TEST_SCENARIOS:
-            available = list(TEST_SCENARIOS.keys())
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown scenario '{request.scenario}'. Available: {available}",
-            )
+    # Get notification content
+    if request.scenario and request.scenario in TEST_SCENARIOS:
         content = TEST_SCENARIOS[request.scenario].copy()
     elif request.custom:
-        content = {
-            "app_name": request.custom.get("app_name", "Test App"),
-            "app_id": request.custom.get("app_id", "test.app"),
-            "title": request.custom.get("title", "Test Notification"),
-            "body": request.custom.get("body", "Test from developer API."),
-            "sender": request.custom.get("sender"),
-            "conversation_type": request.custom.get("conversation_type"),
-            "conversation_name": request.custom.get("conversation_name"),
-        }
+        content = request.custom
     else:
         content = {
             "app_name": "Cortex Dev",
-            "app_id": "cortex.dev.test",
-            "title": "Test Notification",
-            "body": "Test from Cortex developer API. Push pipeline working!",
+            "title": "[TEST] Test Notification",
+            "body": "This is a test notification from the developer API.",
         }
 
-    # Add required fields
-    content["device_id"] = request.device_id
-    content["timestamp"] = datetime.now(UTC).isoformat()
+    # Add test prefix to title if not already present
+    if not content.get("title", "").startswith("[TEST]"):
+        content["title"] = f"[TEST] {content.get('title', 'Test')}"
 
-    try:
-        # Create a simple request object for the store
-        from amplifier_server.models import IngestNotificationRequest
+    # Store the notification
+    ingest_request = IngestNotificationRequest(
+        device_id=request.device_id,
+        app_id=content.get("app_id", "cortex.dev.test"),
+        app_name=content.get("app_name", "Cortex Dev"),
+        title=content.get("title", "Test"),
+        body=content.get("body", ""),
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+    notification_id = await _notification_store.store(ingest_request)
 
-        ingest_request = IngestNotificationRequest(
-            device_id=request.device_id,
-            app_id=content.get("app_id", "test.app"),
-            app_name=content.get("app_name", "Test App"),
-            title=content.get("title", "Test"),
-            body=content.get("body"),
-            timestamp=content["timestamp"],
-            sender=content.get("sender"),
-            conversation_type=content.get("conversation_type"),
-            conversation_name=content.get("conversation_name"),
-        )
+    # Process it
+    await _notification_processor.enqueue(notification_id)
 
-        # Store the notification
-        notification_id = await _notification_store.store(ingest_request)
+    # Wait for processing (with timeout)
+    max_wait = 5.0
+    poll_interval = 0.2
+    elapsed = 0.0
 
-        # Enqueue for processing and wait for result
-        if _notification_processor:
-            await _notification_processor.enqueue(notification_id)
-            # Wait a bit for processing to complete
-            await asyncio.sleep(3.0)
+    while elapsed < max_wait:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
 
-        # Fetch the result
         notif = await _notification_store.get_by_id(notification_id)
-        if not notif:
-            return TestNotificationResponse(
-                notification_id=notification_id,
-                decision="stored",
-                pushed_to_device=False,
-                error="Stored but could not retrieve result",
-            )
+        if notif and notif.get("decision"):
+            break
 
-        decision = notif.get("decision") or "pending"
-        relevance_score = notif.get("relevance_score")
-        rationale = notif.get("rationale")
-
-        # Actually push to device if decision is "push"
-        pushed = False
-        if decision == "push" and _device_manager:
-            from amplifier_server.models import PushNotificationRequest
-
-            push_request = PushNotificationRequest(
-                device_id=request.device_id,
-                title=f"[TEST] {content.get('title', 'Test')}",
-                body=content.get("body", "Test notification"),
-                urgency="normal",
-                rationale=rationale,
-                app_source=content.get("app_name"),
-            )
-            results = await _device_manager.push_notification(push_request)
-            # results is dict[device_id, success_bool]
-            pushed = any(results.values()) if results else False
-            logger.info(f"Test push results: {results}")
-
+    # Fetch final result
+    notif = await _notification_store.get_by_id(notification_id)
+    if not notif:
         return TestNotificationResponse(
             notification_id=notification_id,
-            decision=decision,
-            relevance_score=relevance_score,
-            rationale=rationale,
-            pushed_to_device=pushed,
-        )
-
-    except Exception as e:
-        logger.error(f"Test notification failed: {e}")
-        return TestNotificationResponse(
             decision="error",
             pushed_to_device=False,
-            error=str(e),
+            error="Notification not found after processing",
         )
 
+    decision = notif.get("decision") or "pending"
+    score = notif.get("relevance_score")
+    rationale = notif.get("rationale")
 
-@router.get("/recent-decisions")
-async def get_recent_decisions(
-    limit: int = 10,
-    user: User = Depends(require_auth),
-) -> list[RecentDecision]:
-    """Get recent LLM scoring decisions with full reasoning."""
-    if not _notification_store:
-        raise HTTPException(status_code=503, detail="Notification store not available")
+    # If decision is push, actually push to device
+    pushed = False
+    if decision == "push" and _device_manager:
+        from amplifier_server.models import PushNotificationRequest
 
-    recent = await _notification_store.get_recent(limit=limit)
-
-    decisions = []
-    for notif in recent:
-        body = notif.get("body", "")
-        body_preview = body[:100] if body else None
-        decisions.append(
-            RecentDecision(
-                notification_id=notif.get("id", 0),
-                app_name=notif.get("app_name"),
-                title=notif.get("title") or "",
-                body_preview=body_preview,
-                decision=notif.get("decision") or "pending",
-                relevance_score=notif.get("relevance_score"),
-                rationale=notif.get("rationale"),
-                ai_thinking=notif.get("ai_thinking"),
-                processing_time_ms=notif.get("processing_time_ms"),
-                timestamp=notif.get("timestamp") or "",
-            )
+        push_request = PushNotificationRequest(
+            device_id=request.device_id,
+            title=f"🔔 {content.get('title', 'Test')}",
+            body=content.get("body", ""),
+            urgency="high" if score and score >= 0.7 else "normal",
+            rationale=rationale,
+            app_source=content.get("app_name"),
         )
 
-    return decisions
+        results = await _device_manager.push_notification(push_request)
+        pushed = results.get(request.device_id, False)
+        logger.info(f"Test push results: {results}")
 
-
-@router.get("/config")
-async def get_config(user: User = Depends(require_auth)) -> dict[str, Any]:
-    """Get current notification processing configuration."""
-    config: dict[str, Any] = {
-        "llm_enabled": _notification_processor is not None,
-        "vip_senders": [],
-        "keywords": [],
-        "push_threshold": 0.6,
-        "focus_hours": [],
-        "suppress_all_by_default": False,
-    }
-
-    if _notification_store:
-        config["vip_senders"] = getattr(_notification_store, "vip_senders", [])
-        config["keywords"] = getattr(_notification_store, "keywords", [])
-        config["push_threshold"] = getattr(_notification_store, "push_threshold", 0.6)
-        config["focus_hours"] = getattr(_notification_store, "focus_hours", [])
-
-    return config
+    return TestNotificationResponse(
+        notification_id=notification_id,
+        decision=decision,
+        relevance_score=score,
+        rationale=rationale,
+        pushed_to_device=pushed,
+    )
 
 
 @router.get("/scenarios")
-async def list_test_scenarios(
+async def get_test_scenarios(
     user: User = Depends(require_auth),
 ) -> dict[str, Any]:
-    """List available test scenarios with descriptions."""
-    descriptions = {
-        "vip_mention": "Message from a VIP sender with action request",
-        "urgent_keyword": "Contains 'urgent' and 'deadline' keywords",
-        "group_chat": "Casual group chat message (typically suppressed)",
-        "low_priority": "Low relevance channel post (should suppress)",
-        "action_needed": "PR review request requiring action",
-        "calendar_reminder": "Calendar meeting reminder",
-    }
+    """
+    List available test scenarios.
 
-    expected = {
-        "vip_mention": "push (VIP + action request)",
-        "urgent_keyword": "push (urgency + deadline)",
-        "group_chat": "suppress (casual group chat)",
-        "low_priority": "suppress (low relevance)",
-        "action_needed": "push (explicit action needed)",
-        "calendar_reminder": "push (time-sensitive)",
-    }
+    Returns predefined test scenarios that can be used with
+    POST /dev/test-notification to test notification processing.
+    """
+    scenarios = {}
+    for name, content in TEST_SCENARIOS.items():
+        scenarios[name] = {
+            "app_name": content.get("app_name"),
+            "title": content.get("title"),
+            "body_preview": content.get("body", "")[:50] + "...",
+            "expected_behavior": content.get("expected"),
+        }
 
     return {
-        "scenarios": {
-            name: {
-                "description": descriptions.get(name, "Test scenario"),
-                "expected_decision": expected.get(name, "varies"),
-                "preview": {
-                    "app_name": scenario["app_name"],
-                    "title": scenario["title"],
-                    "body_preview": (
-                        scenario["body"][:50] + "..."
-                        if len(scenario["body"]) > 50
-                        else scenario["body"]
-                    ),
-                },
-            }
-            for name, scenario in TEST_SCENARIOS.items()
-        }
+        "scenarios": scenarios,
+        "usage": "POST /dev/test-notification with {device_id, scenario: 'name'}",
     }
 
 
 @router.get("/websocket-test")
-async def websocket_test_info(
+async def get_websocket_test_info(
     user: User = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Get information for testing WebSocket connections."""
+    """
+    Get WebSocket testing information and example code.
+
+    Returns connection instructions and example code for testing
+    WebSocket connectivity from client applications.
+    """
     return {
-        "websocket_url": "/ws/device/{device_id}",
-        "protocol": "JSON messages over WebSocket",
-        "authentication": {
-            "method": "Send auth message after connecting",
-            "example": {"type": "auth", "api_key": "your-api-key-here"},
-        },
+        "endpoint": "/ws/device/{device_id}",
+        "auth_message": {"type": "auth", "api_key": "your-api-key"},
         "message_types": {
-            "incoming": {
-                "auth_success": "Authentication successful",
-                "notification": "Push notification to display",
-                "ping": "Keep-alive ping (respond with pong)",
-            },
-            "outgoing": {
-                "auth": "Authentication request",
-                "pong": "Response to ping",
-            },
+            "notification": "Push notification to display",
+            "ping": "Connectivity test (respond with pong)",
+            "config_update": "Configuration changed",
         },
         "example_python": """
 import asyncio
-import aiohttp
+import websockets
 import json
 
 async def test_websocket():
-    async with aiohttp.ClientSession() as session:
-        ws_url = "ws://server:19420/ws/device/test-device"
-        async with session.ws_connect(ws_url) as ws:
-            await ws.send_json({"type": "auth", "api_key": "your-key"})
-
-            async for msg in ws:
-                data = json.loads(msg.data)
-                print(f"Received: {data}")
-
-                if data.get("type") == "ping":
-                    await ws.send_json({"type": "pong"})
+    uri = "ws://localhost:19420/ws/device/my-device-id"
+    async with websockets.connect(uri) as ws:
+        # Authenticate
+        await ws.send_json({"type": "auth", "api_key": "your-key"})
+        
+        # Listen for messages
+        async for msg in ws:
+            data = json.loads(msg)
+            print(f"Received: {data['type']}")
+            
+            if data["type"] == "ping":
+                await ws.send_json({"type": "pong"})
 
 asyncio.run(test_websocket())
 """,
-    }
-
-
-@router.get("/connections")
-async def get_connections(
-    user: User = Depends(require_auth),
-) -> dict[str, Any]:
-    """
-    Diagnostic endpoint showing all WebSocket connections.
-
-    Use this to verify your device_id matches what the server sees.
-    """
-    if not _device_manager:
-        raise HTTPException(status_code=503, detail="Device manager not available")
-
-    # Get all devices (connected and recently disconnected)
-    all_devices = _device_manager.list_devices(connected_only=False)
-    connected_devices = _device_manager.list_devices(connected_only=True)
-
-    connected_ids = {d.device_id for d in connected_devices}
-
-    connections = []
-    for device in all_devices:
-        is_connected = device.device_id in connected_ids
-        connections.append(
-            {
-                "device_id": device.device_id,
-                "device_name": device.device_name,
-                "platform": device.platform,
-                "connected": is_connected,
-                "connected_at": device.connected_at.isoformat() if device.connected_at else None,
-                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
-            }
-        )
-
-    return {
-        "total_devices": len(all_devices),
-        "connected_count": len(connected_devices),
-        "connections": connections,
-        "troubleshooting": {
-            "no_devices": "Connect via WebSocket to /ws/device/{your-device-id}",
-            "device_not_receiving": (
-                "Ensure test notification device_id matches a connected device_id exactly"
-            ),
-            "wrong_device_id": (
-                "The device_id in test-notification must match your WebSocket connection"
-            ),
-        },
-    }
-
-
-@router.post("/ping-device")
-async def ping_device(
-    device_id: str,
-    user: User = Depends(require_auth),
-) -> dict[str, Any]:
-    """
-    Send a test ping to a specific device to verify connectivity.
-
-    The device should receive a message with type='ping'.
-    """
-    if not _device_manager:
-        raise HTTPException(status_code=503, detail="Device manager not available")
-
-    if not _device_manager.is_connected(device_id):
-        return {
-            "success": False,
-            "error": f"Device '{device_id}' is not connected",
-            "hint": "Check /dev/connections to see connected device_ids",
-        }
-
-    from amplifier_server.models import WebSocketMessage
-
-    message = WebSocketMessage(
-        type="ping",
-        payload={"test": True, "message": "Connectivity test from /dev/ping-device"},
-    )
-
-    success = await _device_manager.send_to_device(device_id, message)
-
-    return {
-        "success": success,
-        "device_id": device_id,
-        "message_sent": message.model_dump() if success else None,
-        "note": "Device should respond with type='pong' if working correctly",
     }
