@@ -20,6 +20,7 @@ from amplifier_server.api import (
     triage_router,
     websocket_router,
 )
+from amplifier_server.api import developer as developer_api
 from amplifier_server.api import devices as devices_api
 from amplifier_server.api import notifications as notifications_api
 from amplifier_server.api import sessions as sessions_api
@@ -217,6 +218,7 @@ class AmplifierServer:
         app.include_router(devices_router)
         app.include_router(notifications_router)
         app.include_router(triage_router)  # Triage system endpoints
+        app.include_router(developer_api.router)  # Developer/debug endpoints
         app.include_router(websocket_router)
 
         # API root endpoint
