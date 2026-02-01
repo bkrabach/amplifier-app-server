@@ -285,6 +285,58 @@ ws.onmessage = (event) => {
 }
 ```
 
+#### GET /dev/connections
+**View all WebSocket connections and their device IDs.**
+
+Use this to debug device connectivity issues - verify your client's device_id matches what the server sees.
+
+```json
+{
+  "total_devices": 2,
+  "connected_count": 1,
+  "connections": [
+    {
+      "device_id": "macbook-pro-123",
+      "device_name": "MacBook Pro",
+      "platform": "macos",
+      "connected": true,
+      "connected_at": "2026-02-01T08:00:00",
+      "last_seen": "2026-02-01T09:10:00"
+    }
+  ],
+  "troubleshooting": {
+    "no_devices": "Connect via WebSocket to /ws/device/{your-device-id}",
+    "device_not_receiving": "Ensure test notification device_id matches a connected device_id exactly",
+    "wrong_device_id": "The device_id in test-notification must match your WebSocket connection"
+  }
+}
+```
+
+#### POST /dev/ping-device
+**Send a test ping to verify device connectivity.**
+
+Query parameter: `device_id` (required)
+
+```bash
+curl -X POST "http://server:19420/dev/ping-device?device_id=macbook-pro-123" \
+  -H "X-API-Key: your-key"
+```
+
+Response:
+```json
+{
+  "success": true,
+  "device_id": "macbook-pro-123",
+  "message_sent": {
+    "type": "ping",
+    "payload": {"test": true, "message": "Connectivity test from /dev/ping-device"}
+  },
+  "note": "Device should respond with type='pong' if working correctly"
+}
+```
+
+The device will receive a WebSocket message with `type: "ping"`. Use this to verify the WebSocket connection is working before testing notifications.
+
 ---
 
 ## Building a Client
