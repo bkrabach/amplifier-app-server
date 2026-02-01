@@ -424,3 +424,88 @@ async def test_websocket():
 asyncio.run(test_websocket())
 """,
     }
+
+
+@router.get("/connections")
+async def get_connections(
+    user: User = Depends(require_auth),
+) -> dict[str, Any]:
+    """
+    Diagnostic endpoint showing all WebSocket connections.
+
+    Use this to verify your device_id matches what the server sees.
+    """
+    if not _device_manager:
+        raise HTTPException(status_code=503, detail="Device manager not available")
+
+    # Get all devices (connected and recently disconnected)
+    all_devices = _device_manager.list_devices(connected_only=False)
+    connected_devices = _device_manager.list_devices(connected_only=True)
+
+    connected_ids = {d.device_id for d in connected_devices}
+
+    connections = []
+    for device in all_devices:
+        is_connected = device.device_id in connected_ids
+        connections.append(
+            {
+                "device_id": device.device_id,
+                "device_name": device.device_name,
+                "platform": device.platform,
+                "connected": is_connected,
+                "connected_at": device.connected_at.isoformat() if device.connected_at else None,
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+            }
+        )
+
+    return {
+        "total_devices": len(all_devices),
+        "connected_count": len(connected_devices),
+        "connections": connections,
+        "troubleshooting": {
+            "no_devices": "Connect via WebSocket to /ws/device/{your-device-id}",
+            "device_not_receiving": (
+                "Ensure test notification device_id matches a connected device_id exactly"
+            ),
+            "wrong_device_id": (
+                "The device_id in test-notification must match your WebSocket connection"
+            ),
+        },
+    }
+
+
+@router.post("/ping-device")
+async def ping_device(
+    device_id: str,
+    user: User = Depends(require_auth),
+) -> dict[str, Any]:
+    """
+    Send a test ping to a specific device to verify connectivity.
+
+    The device should receive a message with type='ping'.
+    """
+    if not _device_manager:
+        raise HTTPException(status_code=503, detail="Device manager not available")
+
+    if not _device_manager.is_connected(device_id):
+        return {
+            "success": False,
+            "error": f"Device '{device_id}' is not connected",
+            "hint": "Check /dev/connections to see connected device_ids",
+        }
+
+    from amplifier_server.models import WebSocketMessage
+
+    message = WebSocketMessage(
+        type="ping",
+        payload={"test": True, "message": "Connectivity test from /dev/ping-device"},
+    )
+
+    success = await _device_manager.send_to_device(device_id, message)
+
+    return {
+        "success": success,
+        "device_id": device_id,
+        "message_sent": message.model_dump() if success else None,
+        "note": "Device should respond with type='pong' if working correctly",
+    }
