@@ -302,14 +302,14 @@ async def get_recent_decisions(
             RecentDecision(
                 notification_id=notif.get("id", 0),
                 app_name=notif.get("app_name"),
-                title=notif.get("title", ""),
+                title=notif.get("title") or "",
                 body_preview=body_preview,
-                decision=notif.get("decision", "unknown"),
+                decision=notif.get("decision") or "pending",
                 relevance_score=notif.get("relevance_score"),
                 rationale=notif.get("rationale"),
                 ai_thinking=notif.get("ai_thinking"),
                 processing_time_ms=notif.get("processing_time_ms"),
-                timestamp=notif.get("timestamp", ""),
+                timestamp=notif.get("timestamp") or "",
             )
         )
 
