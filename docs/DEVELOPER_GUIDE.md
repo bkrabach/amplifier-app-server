@@ -352,6 +352,82 @@ These endpoints are specifically for development and testing.
 #### GET /dev/websocket-test
 **Get WebSocket testing instructions and example code.**
 
+### Log Access
+
+#### GET /logs
+**Get recent server log entries.**
+
+Useful for debugging without SSH access. Supports filtering by level and component.
+
+```bash
+# Get last 100 log entries
+GET /logs
+
+# Filter by level
+GET /logs?level=ERROR
+
+# Filter by component
+GET /logs?component=notification_processor
+
+# Combine filters with limit
+GET /logs?level=WARNING&component=triage&limit=50
+```
+
+```json
+{
+  "count": 25,
+  "entries": [
+    {
+      "timestamp": "2026-02-01T13:45:00Z",
+      "level": "INFO",
+      "logger": "amplifier_server.notification_processor",
+      "component": "notification_processor",
+      "message": "Processing notification 123 for device macbook-001"
+    }
+  ],
+  "filters": {"level": null, "component": null},
+  "hint": "Use /logs/stream for real-time streaming via WebSocket"
+}
+```
+
+**Components:** `notification_processor`, `device_manager`, `triage`, `auth`, `websocket`, etc.
+
+#### WebSocket /logs/stream
+**Stream logs in real-time.**
+
+Connect via WebSocket for live log streaming. Useful for monitoring during development or debugging live issues.
+
+```javascript
+// Connect to log stream
+const ws = new WebSocket('ws://localhost:19420/logs/stream');
+
+// Authenticate first
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: 'auth', api_key: 'your-api-key' }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.type === 'authenticated') {
+    console.log('Connected to log stream');
+  } else if (data.type === 'log') {
+    const entry = data.entry;
+    console.log(`[${entry.level}] ${entry.component}: ${entry.message}`);
+  }
+};
+```
+
+**Query parameters:**
+- `level` - Filter by log level (INFO, WARNING, ERROR)
+- `component` - Filter by component name
+
+**Message types received:**
+- `{"type": "authenticated", "user": "..."}` - Auth successful
+- `{"type": "log", "entry": {...}}` - Log entry (real-time)
+- `{"type": "log", "backfill": true, "entry": {...}}` - Historical entry (on connect)
+- `{"type": "error", "message": "..."}` - Error message
+
 ```bash
 curl -X POST "http://server:19420/dev/ping-device?device_id=macbook-pro-123" \
   -H "X-API-Key: your-key"

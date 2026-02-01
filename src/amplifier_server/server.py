@@ -128,6 +128,11 @@ class AmplifierServer:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             """Manage server lifecycle."""
+            # Set up log capture for API access
+            from amplifier_server.log_capture import setup_log_capture
+
+            setup_log_capture(buffer_size=1000, level=logging.INFO)
+
             logger.info(f"Amplifier Server starting on {self.host}:{self.port}")
             logger.info(f"Data directory: {self.data_dir}")
 
@@ -212,6 +217,7 @@ class AmplifierServer:
         from amplifier_server.api.auth import router as auth_router
         from amplifier_server.api.config import router as config_router
         from amplifier_server.api.connections import router as connections_router
+        from amplifier_server.api.logs import router as logs_router
         from amplifier_server.api.status import router as status_router
 
         app.include_router(auth_router)  # Auth endpoints (public)
@@ -219,6 +225,7 @@ class AmplifierServer:
         app.include_router(status_router)  # Server status
         app.include_router(config_router)  # Configuration
         app.include_router(connections_router)  # WebSocket connections
+        app.include_router(logs_router)  # Log access and streaming
         app.include_router(chat_router)
         app.include_router(sessions_router)
         app.include_router(devices_router)
@@ -238,6 +245,8 @@ class AmplifierServer:
                     "status": "/status",
                     "config": "/config",
                     "connections": "/connections",
+                    "logs": "/logs",
+                    "logs_stream": "/logs/stream (WebSocket)",
                     "sessions": "/sessions",
                     "devices": "/devices",
                     "notifications": "/notifications",
@@ -322,6 +331,11 @@ class AmplifierServer:
         )
         config_api.inject_managers(notification_processor=self.notification_processor)
         connections_api.inject_managers(device_manager=self.device_manager)
+
+        # Inject into Logs module
+        from amplifier_server.api import logs as logs_api
+
+        logs_api.inject_dependencies(user_store=self.user_store)
 
     async def _handle_alarm_triggered(self, alarm: dict[str, Any]) -> None:
         """Handle a triggered alarm from the Cortex scheduler.
