@@ -198,6 +198,32 @@ function renderAITags(tags) {
 }
 
 /**
+ * Render title only if it's not redundant (different from conversation name and app name)
+ * @param {Object} item - Triage item
+ * @returns {string} HTML string for title or empty string
+ */
+function renderTitleIfNotRedundant(item) {
+    if (!item.title) return '';
+    
+    const title = item.title.toLowerCase().trim();
+    const conversationName = (item.conversation_name || '').toLowerCase().trim();
+    const appName = (item.app_name || item.app_display_name || '').toLowerCase().trim();
+    const sender = (item.sender || '').toLowerCase().trim();
+    
+    // Skip title if it matches conversation name, app name, or sender
+    if (title === conversationName || title === appName || title === sender) {
+        return '';
+    }
+    
+    // Skip if conversation name contains title or vice versa (partial match)
+    if (conversationName && (conversationName.includes(title) || title.includes(conversationName))) {
+        return '';
+    }
+    
+    return `<div class="triage-card__title">${escapeHtml(item.title)}</div>`;
+}
+
+/**
  * Render expandable AI thinking/reasoning section
  * @param {Object} item - Triage item
  * @returns {string} HTML string for AI thinking section
@@ -240,7 +266,7 @@ function renderTriageCard(item) {
             </div>
             
             <div class="triage-card__content">
-                ${item.title ? `<div class="triage-card__title">${escapeHtml(item.title)}</div>` : ''}
+                ${renderTitleIfNotRedundant(item)}
                 ${item.body ? `<div class="triage-card__body">${escapeHtml(item.body)}</div>` : ''}
             </div>
             

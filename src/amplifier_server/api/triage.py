@@ -161,7 +161,7 @@ def _notification_to_triage_item(notification: dict[str, Any]) -> TriageItem:
         relevance_score=notification.get("relevance_score"),
         decision=notification.get("decision"),
         rationale=notification.get("rationale"),
-        created_at=notification.get("ingested_at"),
+        created_at=notification.get("timestamp"),  # Use timestamp field from DB
         device_id=notification.get("device_id"),
         conversation_type=notification.get("conversation_type"),
         conversation_name=notification.get("conversation_name"),
@@ -230,7 +230,7 @@ async def get_triage_items(
     - expiring_soon: Pending items expiring within 4 hours
     - pending: Normal pending items not expiring soon
     - expired: Items that have expired (for review) - based on expires_at time
-    
+
     Note: Items are categorized by their actual expiration time, not just status.
     Items with passed expires_at are automatically shown in expired section.
     """
@@ -238,7 +238,7 @@ async def get_triage_items(
     surfaced_raw = await notification_store.get_triage_items(status="surfaced", limit=limit)
     surfaced = []
     auto_expired = []  # Surfaced items that have expired
-    
+
     for item in surfaced_raw:
         if _is_expired(item):
             auto_expired.append(_notification_to_triage_item(item))
@@ -267,7 +267,7 @@ async def get_triage_items(
     # Get already-expired items (status = expired) and combine with auto-expired
     expired_raw = await notification_store.get_triage_items(status="expired", limit=100)
     expired = auto_expired + [_notification_to_triage_item(n) for n in expired_raw]
-    
+
     # Sort expired by created_at descending (most recent first), limit to 50 for review
     expired.sort(key=lambda x: x.created_at or "", reverse=True)
     expired = expired[:50]
