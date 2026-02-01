@@ -291,6 +291,13 @@ class AmplifierServer:
         # Inject into Triage module
         triage_api.inject_stores(self.notification_store, self.feedback_store)
 
+        # Inject into Developer module
+        developer_api.inject_managers(
+            notification_store=self.notification_store,
+            notification_processor=self.notification_processor,
+            device_manager=self.device_manager,
+        )
+
     async def _handle_alarm_triggered(self, alarm: dict[str, Any]) -> None:
         """Handle a triggered alarm from the Cortex scheduler.
 

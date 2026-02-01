@@ -1,15 +1,18 @@
 """Developer API endpoints for testing and debugging."""
 
+import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth import get_current_user
-from ..notifications import NotificationStore, DeviceRegistry
+from amplifier_server.auth import User, require_auth
+from amplifier_server.device_manager import DeviceManager
+from amplifier_server.notification_processor import NotificationProcessor
+from amplifier_server.notification_store import NotificationStore
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +21,35 @@ router = APIRouter(prefix="/dev", tags=["developer"])
 # Track server start time for uptime
 _server_start_time = time.time()
 
+# Module-level storage for injected managers
+_notification_store: NotificationStore | None = None
+_notification_processor: NotificationProcessor | None = None
+_device_manager: DeviceManager | None = None
+
+
+def inject_managers(
+    notification_store: NotificationStore | None = None,
+    notification_processor: NotificationProcessor | None = None,
+    device_manager: DeviceManager | None = None,
+) -> None:
+    """Inject managers into this module."""
+    global _notification_store, _notification_processor, _device_manager
+    _notification_store = notification_store
+    _notification_processor = notification_processor
+    _device_manager = device_manager
+
 
 class TestNotificationRequest(BaseModel):
     """Request to send a test notification."""
+
     device_id: str
-    scenario: str | None = None  # Predefined test scenario
-    custom: dict[str, Any] | None = None  # Custom notification content
+    scenario: str | None = None
+    custom: dict[str, Any] | None = None
 
 
 class TestNotificationResponse(BaseModel):
     """Response from test notification."""
+
     notification_id: int | None = None
     decision: str
     relevance_score: float | None = None
@@ -38,6 +60,7 @@ class TestNotificationResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str
     version: str
     uptime_seconds: int
@@ -48,6 +71,7 @@ class HealthResponse(BaseModel):
 
 class RecentDecision(BaseModel):
     """A recent LLM decision."""
+
     notification_id: int
     app_name: str | None
     title: str
@@ -66,7 +90,7 @@ TEST_SCENARIOS = {
         "app_name": "Microsoft Teams",
         "app_id": "com.microsoft.teams",
         "title": "Kevin Scott",
-        "body": "Hey, can you join a quick call about the launch? Need your input on the timeline.",
+        "body": "Hey, can you join a quick call about the launch? Need your input.",
         "sender": "Kevin Scott",
         "conversation_type": "direct",
     },
@@ -74,7 +98,7 @@ TEST_SCENARIOS = {
         "app_name": "Outlook",
         "app_id": "com.microsoft.outlook",
         "title": "URGENT: Deadline Tomorrow",
-        "body": "The review deadline is tomorrow at 5pm. Please submit your changes ASAP.",
+        "body": "The review deadline is tomorrow at 5pm. Please submit ASAP.",
         "sender": "Project Manager",
         "conversation_type": "direct",
     },
@@ -82,7 +106,7 @@ TEST_SCENARIOS = {
         "app_name": "WhatsApp",
         "app_id": "com.whatsapp",
         "title": "Family Group",
-        "body": "~ Mom: Did everyone see the photos from last weekend? 😊",
+        "body": "~ Mom: Did everyone see the photos from last weekend?",
         "sender": "Family Group",
         "conversation_type": "group",
         "conversation_name": "Family Group",
@@ -115,65 +139,52 @@ TEST_SCENARIOS = {
 }
 
 
-def _get_notification_store() -> NotificationStore:
-    """Get the notification store instance."""
-    from ..server import get_notification_store
-    return get_notification_store()
-
-
-def _get_device_registry() -> DeviceRegistry:
-    """Get the device registry instance."""
-    from ..server import get_device_registry
-    return get_device_registry()
-
-
 @router.get("/health", response_model=HealthResponse)
-async def health_check(user: dict = Depends(get_current_user)):
+async def health_check(user: User = Depends(require_auth)) -> HealthResponse:
     """Get server health status with system information."""
-    store = _get_notification_store()
-    registry = _get_device_registry()
-    
-    # Count today's notifications
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    stats = store.get_stats()
-    
-    # Check if LLM is enabled
-    llm_enabled = store.llm_enabled if hasattr(store, 'llm_enabled') else True
-    
+    connected = 0
+    today_count = 0
+
+    if _device_manager:
+        # list_devices(connected_only=True) returns only connected devices
+        connected = len(_device_manager.list_devices(connected_only=True))
+
+    if _notification_store:
+        stats = await _notification_store.get_summary_stats()
+        today_count = stats.get("today", 0)
+
+    llm_enabled = _notification_processor is not None
+
     return HealthResponse(
         status="healthy",
         version="1.0.0",
         uptime_seconds=int(time.time() - _server_start_time),
         llm_enabled=llm_enabled,
-        connected_devices=len(registry.get_all_devices()),
-        notifications_today=stats.get("today", 0),
+        connected_devices=connected,
+        notifications_today=today_count,
     )
 
 
 @router.post("/test-notification", response_model=TestNotificationResponse)
 async def send_test_notification(
     request: TestNotificationRequest,
-    user: dict = Depends(get_current_user)
-):
+    user: User = Depends(require_auth),
+) -> TestNotificationResponse:
     """
     Send a test notification through the full processing pipeline.
-    
-    This endpoint allows testing:
-    1. Notification ingestion
-    2. LLM scoring (if enabled)
-    3. Push delivery to device
-    
+
     Use predefined scenarios or provide custom content.
     """
-    store = _get_notification_store()
-    registry = _get_device_registry()
-    
-    # Build notification content
+    if not _notification_store:
+        raise HTTPException(status_code=503, detail="Notification store not available")
+
+    # Build notification content from scenario or custom
     if request.scenario:
         if request.scenario not in TEST_SCENARIOS:
+            available = list(TEST_SCENARIOS.keys())
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown scenario '{request.scenario}'. Available: {list(TEST_SCENARIOS.keys())}"
+                detail=f"Unknown scenario '{request.scenario}'. Available: {available}",
             )
         content = TEST_SCENARIOS[request.scenario].copy()
     elif request.custom:
@@ -181,41 +192,65 @@ async def send_test_notification(
             "app_name": request.custom.get("app_name", "Test App"),
             "app_id": request.custom.get("app_id", "test.app"),
             "title": request.custom.get("title", "Test Notification"),
-            "body": request.custom.get("body", "This is a test notification from the developer API."),
+            "body": request.custom.get("body", "Test from developer API."),
             "sender": request.custom.get("sender"),
             "conversation_type": request.custom.get("conversation_type"),
             "conversation_name": request.custom.get("conversation_name"),
         }
     else:
-        # Default test notification
         content = {
             "app_name": "Cortex Dev",
             "app_id": "cortex.dev.test",
             "title": "Test Notification",
-            "body": "This is a test notification from the Cortex developer API. If you see this, the push pipeline is working!",
+            "body": "Test from Cortex developer API. Push pipeline working!",
         }
-    
-    # Add metadata
+
+    # Add required fields
     content["device_id"] = request.device_id
-    content["timestamp"] = datetime.now(timezone.utc).isoformat()
-    
+    content["timestamp"] = datetime.now(UTC).isoformat()
+
     try:
-        # Process through the notification pipeline
-        result = await store.add_notification(content)
-        
-        notification_id = result.get("id")
-        decision = result.get("decision", "unknown")
-        relevance_score = result.get("relevance_score")
-        rationale = result.get("rationale")
-        
+        # Create a simple request object for the store
+        from amplifier_server.models import IngestNotificationRequest
+
+        ingest_request = IngestNotificationRequest(
+            device_id=request.device_id,
+            app_id=content.get("app_id", "test.app"),
+            app_name=content.get("app_name", "Test App"),
+            title=content.get("title", "Test"),
+            body=content.get("body"),
+            timestamp=content["timestamp"],
+            sender=content.get("sender"),
+            conversation_type=content.get("conversation_type"),
+            conversation_name=content.get("conversation_name"),
+        )
+
+        # Store the notification
+        notification_id = await _notification_store.store(ingest_request)
+
+        # Enqueue for processing and wait for result
+        if _notification_processor:
+            await _notification_processor.enqueue(notification_id)
+            # Wait a bit for processing to complete
+            await asyncio.sleep(3.0)
+
+        # Fetch the result
+        notif = await _notification_store.get_by_id(notification_id)
+        if not notif:
+            return TestNotificationResponse(
+                notification_id=notification_id,
+                decision="stored",
+                pushed_to_device=False,
+                error="Stored but could not retrieve result",
+            )
+
+        decision = notif.get("decision", "pending")
+        relevance_score = notif.get("relevance_score")
+        rationale = notif.get("rationale")
+
         # Check if push was delivered
-        pushed = False
-        if decision == "push":
-            device = registry.get_device(request.device_id)
-            if device and device.get("connected"):
-                # The notification should have been pushed during add_notification
-                pushed = True
-        
+        pushed = decision == "push"
+
         return TestNotificationResponse(
             notification_id=notification_id,
             decision=decision,
@@ -223,7 +258,7 @@ async def send_test_notification(
             rationale=rationale,
             pushed_to_device=pushed,
         )
-        
+
     except Exception as e:
         logger.error(f"Test notification failed: {e}")
         return TestNotificationResponse(
@@ -236,96 +271,71 @@ async def send_test_notification(
 @router.get("/recent-decisions")
 async def get_recent_decisions(
     limit: int = 10,
-    user: dict = Depends(get_current_user)
+    user: User = Depends(require_auth),
 ) -> list[RecentDecision]:
-    """
-    Get recent LLM scoring decisions with full reasoning.
-    
-    Useful for debugging why notifications were pushed or suppressed.
-    """
-    store = _get_notification_store()
-    
-    # Get recent notifications with their decisions
-    recent = store.get_recent(limit=limit)
-    
+    """Get recent LLM scoring decisions with full reasoning."""
+    if not _notification_store:
+        raise HTTPException(status_code=503, detail="Notification store not available")
+
+    recent = await _notification_store.get_recent(limit=limit)
+
     decisions = []
     for notif in recent:
-        decisions.append(RecentDecision(
-            notification_id=notif.get("id", 0),
-            app_name=notif.get("app_name"),
-            title=notif.get("title", ""),
-            body_preview=notif.get("body", "")[:100] if notif.get("body") else None,
-            decision=notif.get("decision", "unknown"),
-            relevance_score=notif.get("relevance_score"),
-            rationale=notif.get("rationale"),
-            ai_thinking=notif.get("ai_thinking"),
-            processing_time_ms=notif.get("processing_time_ms"),
-            timestamp=notif.get("timestamp", ""),
-        ))
-    
+        body = notif.get("body", "")
+        body_preview = body[:100] if body else None
+        decisions.append(
+            RecentDecision(
+                notification_id=notif.get("id", 0),
+                app_name=notif.get("app_name"),
+                title=notif.get("title", ""),
+                body_preview=body_preview,
+                decision=notif.get("decision", "unknown"),
+                relevance_score=notif.get("relevance_score"),
+                rationale=notif.get("rationale"),
+                ai_thinking=notif.get("ai_thinking"),
+                processing_time_ms=notif.get("processing_time_ms"),
+                timestamp=notif.get("timestamp", ""),
+            )
+        )
+
     return decisions
 
 
 @router.get("/config")
-async def get_config(user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    """
-    Get current notification processing configuration.
-    
-    Shows VIP senders, keywords, thresholds, and focus hours.
-    """
-    store = _get_notification_store()
-    
-    # Get configuration from store
-    config = {
-        "llm_enabled": getattr(store, 'llm_enabled', True),
-        "vip_senders": getattr(store, 'vip_senders', []),
-        "keywords": getattr(store, 'keywords', []),
-        "push_threshold": getattr(store, 'push_threshold', 0.6),
-        "focus_hours": getattr(store, 'focus_hours', []),
-        "suppress_all_by_default": getattr(store, 'suppress_all', False),
+async def get_config(user: User = Depends(require_auth)) -> dict[str, Any]:
+    """Get current notification processing configuration."""
+    config: dict[str, Any] = {
+        "llm_enabled": _notification_processor is not None,
+        "vip_senders": [],
+        "keywords": [],
+        "push_threshold": 0.6,
+        "focus_hours": [],
+        "suppress_all_by_default": False,
     }
-    
+
+    if _notification_store:
+        config["vip_senders"] = getattr(_notification_store, "vip_senders", [])
+        config["keywords"] = getattr(_notification_store, "keywords", [])
+        config["push_threshold"] = getattr(_notification_store, "push_threshold", 0.6)
+        config["focus_hours"] = getattr(_notification_store, "focus_hours", [])
+
     return config
 
 
 @router.get("/scenarios")
-async def list_test_scenarios(user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    """
-    List available test scenarios with descriptions.
-    
-    Use these with POST /dev/test-notification.
-    """
-    return {
-        "scenarios": {
-            name: {
-                "description": _get_scenario_description(name),
-                "expected_decision": _get_expected_decision(name),
-                "preview": {
-                    "app_name": scenario["app_name"],
-                    "title": scenario["title"],
-                    "body_preview": scenario["body"][:50] + "..." if len(scenario["body"]) > 50 else scenario["body"],
-                }
-            }
-            for name, scenario in TEST_SCENARIOS.items()
-        }
-    }
-
-
-def _get_scenario_description(name: str) -> str:
-    """Get description for a test scenario."""
+async def list_test_scenarios(
+    user: User = Depends(require_auth),
+) -> dict[str, Any]:
+    """List available test scenarios with descriptions."""
     descriptions = {
-        "vip_mention": "Message from a VIP sender (Kevin Scott) with action request",
+        "vip_mention": "Message from a VIP sender with action request",
         "urgent_keyword": "Contains 'urgent' and 'deadline' keywords",
         "group_chat": "Casual group chat message (typically suppressed)",
         "low_priority": "Low relevance channel post (should suppress)",
         "action_needed": "PR review request requiring action",
         "calendar_reminder": "Calendar meeting reminder",
     }
-    return descriptions.get(name, "Test scenario")
 
-
-def _get_expected_decision(name: str) -> str:
-    """Get expected decision for a test scenario."""
     expected = {
         "vip_mention": "push (VIP + action request)",
         "urgent_keyword": "push (urgency + deadline)",
@@ -334,22 +344,38 @@ def _get_expected_decision(name: str) -> str:
         "action_needed": "push (explicit action needed)",
         "calendar_reminder": "push (time-sensitive)",
     }
-    return expected.get(name, "varies")
+
+    return {
+        "scenarios": {
+            name: {
+                "description": descriptions.get(name, "Test scenario"),
+                "expected_decision": expected.get(name, "varies"),
+                "preview": {
+                    "app_name": scenario["app_name"],
+                    "title": scenario["title"],
+                    "body_preview": (
+                        scenario["body"][:50] + "..."
+                        if len(scenario["body"]) > 50
+                        else scenario["body"]
+                    ),
+                },
+            }
+            for name, scenario in TEST_SCENARIOS.items()
+        }
+    }
 
 
 @router.get("/websocket-test")
-async def websocket_test_info(user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    """
-    Get information for testing WebSocket connections.
-    
-    Returns example code and connection URLs.
-    """
+async def websocket_test_info(
+    user: User = Depends(require_auth),
+) -> dict[str, Any]:
+    """Get information for testing WebSocket connections."""
     return {
         "websocket_url": "/ws/device/{device_id}",
         "protocol": "JSON messages over WebSocket",
         "authentication": {
             "method": "Send auth message after connecting",
-            "example": {"type": "auth", "api_key": "your-api-key-here"}
+            "example": {"type": "auth", "api_key": "your-api-key-here"},
         },
         "message_types": {
             "incoming": {
@@ -360,45 +386,26 @@ async def websocket_test_info(user: dict = Depends(get_current_user)) -> dict[st
             "outgoing": {
                 "auth": "Authentication request",
                 "pong": "Response to ping",
-            }
+            },
         },
-        "example_python": '''
+        "example_python": """
 import asyncio
 import aiohttp
 import json
 
 async def test_websocket():
     async with aiohttp.ClientSession() as session:
-        async with session.ws_connect("ws://server:19420/ws/device/test-device") as ws:
-            # Authenticate
+        ws_url = "ws://server:19420/ws/device/test-device"
+        async with session.ws_connect(ws_url) as ws:
             await ws.send_json({"type": "auth", "api_key": "your-key"})
-            
+
             async for msg in ws:
                 data = json.loads(msg.data)
                 print(f"Received: {data}")
-                
+
                 if data.get("type") == "ping":
                     await ws.send_json({"type": "pong"})
 
 asyncio.run(test_websocket())
-''',
-        "example_javascript": '''
-const ws = new WebSocket("ws://server:19420/ws/device/test-device");
-
-ws.onopen = () => {
-    ws.send(JSON.stringify({type: "auth", api_key: "your-key"}));
-};
-
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log("Received:", data);
-    
-    if (data.type === "ping") {
-        ws.send(JSON.stringify({type: "pong"}));
-    } else if (data.type === "notification") {
-        // Show notification to user
-        new Notification(data.title, {body: data.body});
-    }
-};
-'''
+""",
     }
