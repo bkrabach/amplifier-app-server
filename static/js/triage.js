@@ -102,28 +102,19 @@ function renderTriageList(container) {
     
     let html = '<div class="triage-list">';
     
-    // Expiring soon
+    // Expiring soon - open by default (urgent)
     if (expiring_soon.length > 0) {
-        html += renderSection('⏳ Expiring Soon', expiring_soon, 'expiring');
+        html += renderSection('⏳ Expiring Soon', expiring_soon, 'expiring', true);
     }
     
-    // Pending
+    // Pending - open by default (needs attention)
     if (pending.length > 0) {
-        html += renderSection('📬 Needs Triage', pending, 'pending');
+        html += renderSection('📬 Needs Triage', pending, 'pending', true);
     }
     
-    // Surfaced (punched through) - collapsed by default
+    // Surfaced (punched through) - collapsed by default (already handled)
     if (surfaced.length > 0) {
-        html += `
-            <details class="triage-section triage-section--surfaced">
-                <summary class="triage-section__header triage-section__header--expandable">
-                    ⚡ Punched Through (${surfaced.length}) - click to review
-                </summary>
-                <div class="triage-section__cards">
-                    ${surfaced.map(item => renderTriageCard(item)).join('')}
-                </div>
-            </details>
-        `;
+        html += renderSection('⚡ Punched Through', surfaced, 'surfaced', false);
     }
     
     html += '</div>';
@@ -134,20 +125,24 @@ function renderTriageList(container) {
 }
 
 /**
- * Render a section with header and cards
+ * Render a section with header and cards (collapsible)
  * @param {string} title - Section title
  * @param {Array} items - Triage items
  * @param {string} sectionClass - CSS class modifier
+ * @param {boolean} openByDefault - Whether section is expanded by default
  * @returns {string} HTML string
  */
-function renderSection(title, items, sectionClass) {
+function renderSection(title, items, sectionClass, openByDefault = true) {
+    const openAttr = openByDefault ? ' open' : '';
     return `
-        <div class="triage-section triage-section--${sectionClass}">
-            <h3 class="triage-section__header">${title} (${items.length})</h3>
+        <details class="triage-section triage-section--${sectionClass}"${openAttr}>
+            <summary class="triage-section__header triage-section__header--expandable">
+                ${title} (${items.length})
+            </summary>
             <div class="triage-section__cards">
                 ${items.map(item => renderTriageCard(item)).join('')}
             </div>
-        </div>
+        </details>
     `;
 }
 
@@ -539,10 +534,25 @@ function formatTimeAgo(dateStr) {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
     
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    let relative;
+    if (diffMins < 1) relative = 'Just now';
+    else if (diffMins < 60) relative = `${diffMins}m ago`;
+    else if (diffHours < 24) relative = `${diffHours}h ago`;
+    else if (diffDays < 7) relative = `${diffDays}d ago`;
+    else relative = date.toLocaleDateString();
+    
+    // Full date/time in local timezone
+    const full = date.toLocaleString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+    
+    // Return both relative and full time
+    return `<span title="${full}">${relative}</span> · <span class="time-full">${full}</span>`;
 }
 
 /**

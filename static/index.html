@@ -209,6 +209,40 @@
             background: var(--color-slate-300);
             border-radius: var(--radius-full);
         }
+        
+        /* Time display with full date */
+        .time-full {
+            color: var(--color-slate-500);
+            font-size: 0.85em;
+        }
+        
+        .time-with-tooltip {
+            cursor: help;
+        }
+        
+        /* Collapsible section styling */
+        .triage-section__header--expandable {
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .triage-section__header--expandable::-webkit-details-marker {
+            display: none;
+        }
+        
+        .triage-section__header--expandable::before {
+            content: '▶';
+            font-size: 0.75em;
+            transition: transform 0.2s ease;
+        }
+        
+        details[open] > .triage-section__header--expandable::before {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 <body>
