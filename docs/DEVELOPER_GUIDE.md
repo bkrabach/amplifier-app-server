@@ -229,10 +229,124 @@ ws.onmessage = (event) => {
 {
   "llm_enabled": true,
   "vip_senders": ["Kevin Scott", "Sam Schillace"],
-  "keywords": ["urgent", "deadline", "launch"],
+  "keywords": {
+    "urgent": ["urgent", "asap", "emergency"],
+    "action": ["please review", "need your input"]
+  },
+  "apps": {
+    "priority": ["Microsoft Teams"],
+    "low_priority": ["Game Center"]
+  },
   "push_threshold": 0.6,
-  "focus_hours": ["09:00-12:00", "13:00-16:00"]
+  "user_aliases": ["Brian", "bkrabach"]
 }
+```
+
+#### GET /config/notification-rules
+**Get all notification rules in a structured format (designed for UI).**
+
+Returns all configurable rules with descriptions - ideal for building admin UIs.
+
+### Notification Rules Management
+
+These endpoints let you manage the rules that control notification scoring.
+
+#### VIP Senders
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/config/vips` | List all VIP senders |
+| POST | `/config/vips` | Add a VIP sender |
+| DELETE | `/config/vips` | Remove a VIP sender |
+
+```bash
+# List VIPs
+curl http://localhost:19420/config/vips -H "Authorization: Bearer KEY"
+
+# Add a VIP
+curl -X POST http://localhost:19420/config/vips \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "Sam Altman"}'
+
+# Remove a VIP
+curl -X DELETE http://localhost:19420/config/vips \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "Sam Altman"}'
+```
+
+#### Keywords
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/config/keywords` | List all keywords (urgent + action) |
+| GET | `/config/keywords/urgent` | List urgent keywords |
+| POST | `/config/keywords/urgent` | Add an urgent keyword |
+| DELETE | `/config/keywords/urgent` | Remove an urgent keyword |
+| GET | `/config/keywords/action` | List action keywords |
+| POST | `/config/keywords/action` | Add an action keyword |
+| DELETE | `/config/keywords/action` | Remove an action keyword |
+
+```bash
+# Add an urgent keyword
+curl -X POST http://localhost:19420/config/keywords/urgent \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "critical"}'
+```
+
+#### App Priority Rules
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/config/apps` | List all app rules |
+| POST | `/config/apps` | Set an app's priority (high/normal/low) |
+| DELETE | `/config/apps` | Remove an app rule (reset to normal) |
+
+```bash
+# Set an app to low priority (rarely pushed)
+curl -X POST http://localhost:19420/config/apps \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"app_name": "Game Center", "priority": "low"}'
+
+# Set an app to high priority
+curl -X POST http://localhost:19420/config/apps \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"app_name": "Slack", "priority": "high"}'
+```
+
+#### Push Threshold
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/config/threshold` | Get current push threshold |
+| PUT | `/config/threshold` | Set push threshold (0.0-1.0) |
+
+```bash
+# Lower threshold = more notifications pushed
+curl -X PUT http://localhost:19420/config/threshold \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"threshold": 0.5}'
+```
+
+#### User Aliases
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/config/aliases` | List user aliases (for mention detection) |
+| POST | `/config/aliases` | Add a user alias |
+| DELETE | `/config/aliases` | Remove a user alias |
+
+```bash
+# Add an alias for mention detection
+curl -X POST http://localhost:19420/config/aliases \
+  -H "Authorization: Bearer KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "BK"}'
 ```
 
 #### GET /connections
