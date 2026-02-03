@@ -73,6 +73,7 @@ async def chat_cortex_core(
         logger.info(f"Chat connection established to Cortex Core for user {user.id}")
 
         # Ensure user's cortex core session exists
+        session_just_created = False
         try:
             await _session_manager.get_session(core_id)
         except Exception:
@@ -85,9 +86,10 @@ async def chat_cortex_core(
                     bundle=str(bundle_path),
                     session_id=core_id,
                 )
+                session_just_created = True
                 logger.info(f"Created cortex-core session for user {user.id}")
 
-        # Send chat history on connect
+        # Send chat history on connect AND inject into session context
         if _chat_store:
             try:
                 history = await _chat_store.get_recent_messages(
@@ -96,6 +98,7 @@ async def chat_cortex_core(
                     limit=50,
                 )
                 if history:
+                    # Send to frontend for display
                     await websocket.send_json(
                         {
                             "type": "history",
@@ -103,6 +106,26 @@ async def chat_cortex_core(
                         }
                     )
                     logger.info(f"Sent {len(history)} history messages to user {user.id}")
+
+                    # If session was just created (or recreated after restart),
+                    # inject the history into the session's context so the LLM has it
+                    if session_just_created:
+                        try:
+                            session = await _session_manager.get_session(core_id)
+                            context = session.coordinator.get("context")
+                            if context and hasattr(context, "set_messages"):
+                                # Convert ChatStore format to Amplifier format
+                                context_messages = [
+                                    {"role": msg["role"], "content": msg["content"]}
+                                    for msg in history
+                                ]
+                                await context.set_messages(context_messages)
+                                logger.info(
+                                    f"Injected {len(context_messages)} history messages "
+                                    f"into session context for user {user.id}"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Failed to inject history into session: {e}")
             except Exception as e:
                 logger.warning(f"Failed to load chat history: {e}")
 
