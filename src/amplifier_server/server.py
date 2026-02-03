@@ -31,7 +31,10 @@ from amplifier_server.cortex_scheduler import CortexScheduler
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.feedback_store import FeedbackStore
 from amplifier_server.llm_scorer import LLMScorer
+import os
+
 from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
+from amplifier_server.ntfy_notifier import NtfyConfig
 from amplifier_server.notification_store import NotificationStore
 from amplifier_server.session_manager import SessionManager
 
@@ -106,11 +109,24 @@ class AmplifierServer:
             vip_senders=[],
         )
 
+        # ntfy.sh configuration (for mobile push notifications)
+        ntfy_topic = os.environ.get("NTFY_TOPIC")
+        ntfy_config = None
+        if ntfy_topic:
+            ntfy_config = NtfyConfig(
+                topic=ntfy_topic,
+                server=os.environ.get("NTFY_SERVER", "https://ntfy.sh"),
+                cortex_web_url=os.environ.get("CORTEX_WEB_URL"),
+                enabled=True,
+            )
+            logger.info(f"ntfy.sh enabled for mobile notifications (topic: {ntfy_topic})")
+
         # Notification processor with default config
         self.notification_processor = NotificationProcessor(
             notification_store=self.notification_store,
             device_manager=self.device_manager,
             config=self.scoring_config,
+            ntfy_config=ntfy_config,
         )
 
         # LLM scorer (initialized lazily on first use)

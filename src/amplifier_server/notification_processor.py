@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.models import PushNotificationRequest
 from amplifier_server.notification_store import NotificationStore
+from amplifier_server.ntfy_notifier import NtfyConfig, NtfyNotifier
 
 if TYPE_CHECKING:
     from amplifier_server.llm_scorer import LLMScorer
@@ -112,12 +113,19 @@ class NotificationProcessor:
         config: ScoringConfig | None = None,
         llm_scorer: "LLMScorer | None" = None,
         use_llm: bool = False,
+        ntfy_config: NtfyConfig | None = None,
     ):
         self.store = notification_store
         self.device_manager = device_manager
         self.config = config or ScoringConfig()
         self.llm_scorer = llm_scorer
         self.use_llm = use_llm  # Whether to use LLM scoring (vs heuristics only)
+
+        # ntfy.sh integration for mobile push notifications
+        self.ntfy_notifier: NtfyNotifier | None = None
+        if ntfy_config and ntfy_config.enabled and ntfy_config.topic:
+            self.ntfy_notifier = NtfyNotifier(config=ntfy_config)
+            logger.info(f"ntfy.sh enabled for topic: {ntfy_config.topic}")
 
         # Processing queue
         self._queue: asyncio.Queue[int] = asyncio.Queue()
@@ -424,7 +432,7 @@ class NotificationProcessor:
         notification: dict[str, Any],
         result: ScoringResult,
     ) -> None:
-        """Push a high-priority notification to ALL connected devices."""
+        """Push a high-priority notification to ALL connected devices and ntfy."""
         # Note: We broadcast to ALL devices, not just the source device.
         # This ensures notifications captured on one device (e.g., Windows)
         # get pushed to all other devices (e.g., macOS, mobile).
@@ -439,13 +447,27 @@ class NotificationProcessor:
             app_source=notification.get("app_name") or notification.get("app_id"),
         )
 
-        # Send via device manager
+        # Send via device manager (WebSocket to connected clients)
         results = await self.device_manager.push_notification(push_request)
 
         sent = sum(1 for s in results.values() if s)
         logger.info(
             f"Pushed notification to {sent} device(s): {notification.get('title', '')[:50]}"
         )
+
+        # Also send via ntfy.sh for mobile devices
+        if self.ntfy_notifier:
+            try:
+                ntfy_sent = await self.ntfy_notifier.send_cortex_notification(
+                    notification=notification,
+                    score=result.score,
+                    rationale=result.rationale,
+                    notification_id=str(notification.get("id", "")),
+                )
+                if ntfy_sent:
+                    logger.info(f"Pushed notification via ntfy.sh")
+            except Exception as e:
+                logger.warning(f"Failed to send via ntfy.sh: {e}")
 
     def update_config(self, **kwargs) -> None:
         """Update scoring configuration."""
