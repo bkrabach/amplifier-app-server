@@ -424,12 +424,14 @@ class NotificationProcessor:
         notification: dict[str, Any],
         result: ScoringResult,
     ) -> None:
-        """Push a high-priority notification to the user's device."""
-        device_id = notification.get("device_id")
+        """Push a high-priority notification to ALL connected devices."""
+        # Note: We broadcast to ALL devices, not just the source device.
+        # This ensures notifications captured on one device (e.g., Windows)
+        # get pushed to all other devices (e.g., macOS, mobile).
 
         # Create push notification
         push_request = PushNotificationRequest(
-            device_id=device_id,
+            device_id=None,  # None = broadcast to all connected devices
             title=f"🔔 {notification.get('title', 'Notification')}",
             body=notification.get("body", ""),
             urgency="high" if result.score >= 0.8 else "normal",
