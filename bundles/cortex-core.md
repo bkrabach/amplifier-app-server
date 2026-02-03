@@ -33,7 +33,7 @@ tools:
         - "{data_dir}/config"
   - module: tool-bash
   - module: tool-web
-  - module: tool-task
+  - module: tool-delegate
   # Attention Firewall tools are mounted programmatically in session_manager.py
   # (The attention_firewall package structure doesn't match amplifier_module_* convention)
 ---

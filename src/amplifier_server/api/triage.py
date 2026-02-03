@@ -190,6 +190,11 @@ def _map_action_to_status(action: str) -> str:
         "dealt_with": "handled",
         "dismissed": "dismissed",
         "already_handled": "handled",
+        # Aliases for more intuitive naming
+        "ignore": "dismissed",
+        "skip": "dismissed",
+        "done": "handled",
+        "handled": "handled",
     }
     if action not in action_map:
         raise ValueError(f"Invalid action: {action}. Must be one of: {list(action_map.keys())}")
