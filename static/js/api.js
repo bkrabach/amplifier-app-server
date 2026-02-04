@@ -1,13 +1,71 @@
 /**
  * API client wrapper
- * Handles authentication headers, error responses, and token refresh
+ * Handles authentication headers, error responses, and automatic token refresh
  */
 
-import { getAccessToken, clearTokens } from './auth.js';
+import { getAccessToken, getRefreshToken, setTokens, clearTokens, getCurrentUser } from './auth.js';
 
 const API_BASE = window.location.origin;
 
-export async function apiCall(endpoint, options = {}) {
+// Track if we're currently refreshing to prevent multiple refresh attempts
+let isRefreshing = false;
+let refreshPromise = null;
+
+/**
+ * Attempt to refresh the access token using the refresh token
+ */
+async function refreshAccessToken() {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+        return false;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const user = getCurrentUser();
+            setTokens(
+                data.access_token,
+                data.refresh_token || refreshToken, // Some APIs return new refresh token
+                user?.username || '',
+                user?.role || ''
+            );
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Token refresh failed:', error);
+        return false;
+    }
+}
+
+/**
+ * Ensure only one refresh attempt happens at a time
+ */
+async function ensureValidToken() {
+    if (isRefreshing) {
+        return refreshPromise;
+    }
+    
+    isRefreshing = true;
+    refreshPromise = refreshAccessToken();
+    
+    try {
+        return await refreshPromise;
+    } finally {
+        isRefreshing = false;
+        refreshPromise = null;
+    }
+}
+
+export async function apiCall(endpoint, options = {}, retryCount = 0) {
     const token = getAccessToken();
     
     const headers = {
@@ -25,7 +83,22 @@ export async function apiCall(endpoint, options = {}) {
             headers
         });
         
-        // Handle 401 - token expired
+        // Handle 401 - token expired, try to refresh
+        if (response.status === 401 && retryCount === 0) {
+            const refreshed = await ensureValidToken();
+            
+            if (refreshed) {
+                // Retry the original request with new token
+                return apiCall(endpoint, options, retryCount + 1);
+            }
+            
+            // Refresh failed, redirect to login
+            clearTokens();
+            window.location.href = '/login.html';
+            return { success: false, error: 'Session expired' };
+        }
+        
+        // Handle other 401s after retry
         if (response.status === 401) {
             clearTokens();
             window.location.href = '/login.html';

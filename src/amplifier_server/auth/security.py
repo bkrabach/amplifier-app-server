@@ -10,8 +10,8 @@ import jwt
 # JWT config (loaded from server config)
 JWT_SECRET: str | None = None  # Set at runtime
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_MINUTES = 15
-REFRESH_TOKEN_DAYS = 30
+JWT_EXPIRY_MINUTES = 60 * 24 * 7  # 7 days - auto-refresh handles renewal
+REFRESH_TOKEN_DAYS = 90  # 90 days - effectively "remember me"
 
 
 def init_security(secret: str) -> None:
