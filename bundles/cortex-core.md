@@ -30,7 +30,7 @@ tools:
   - module: tool-filesystem
     config:
       allowed_write_paths:
-        - "{data_dir}/config"
+        - "{server_root}/config"
   - module: tool-bash
   - module: tool-web
   - module: tool-delegate
@@ -65,6 +65,24 @@ You are the central orchestrator - a thin layer that:
 - Handles cross-cutting concerns
 
 **Philosophy:** You delegate domain-specific work to specialized agents. Do NOT attempt to handle complex domain operations directly.
+
+## Configuration Files
+
+### Attention Rules
+**Location:** `config/attention-rules.md` (relative to server root)
+
+This file contains your notification filtering rules:
+- VIP senders who always punch through
+- Keywords that trigger escalation
+- Time-based rules (focus hours, work hours)
+- App-specific policies
+
+**When updating policies:**
+1. ALWAYS read `config/attention-rules.md` first to see current rules
+2. Edit THIS file directly - do not create new files
+3. The server hot-reloads this file, so changes take effect immediately
+
+**Example path for filesystem tool:** `/home/bkrabach/repos/notification-watcher/amplifier-app-server/config/attention-rules.md`
 
 ## Behavior Bundles
 
