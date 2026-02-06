@@ -180,6 +180,22 @@ class NotificationProcessor:
             logger.warning(f"Notification {notification_id} not found")
             return
 
+        # HARD FILTER: Skip ntfy notifications to prevent feedback loop
+        # (Our own push notifications get reflected back via Phone Link)
+        title = (notification.get("title") or "").lower()
+        sender = (notification.get("sender") or "").lower()
+        body = (notification.get("body") or "").lower()
+
+        if "ntfy" in title or "ntfy" in sender or body.startswith("🚨") or body.startswith("🔔"):
+            logger.info(f"Skipping ntfy feedback loop notification {notification_id}")
+            await self.store.mark_processed(
+                notification_id=notification_id,
+                relevance_score=0.0,
+                decision="suppress",
+                rationale="Filtered: ntfy feedback loop prevention",
+            )
+            return
+
         # Score the notification (LLM or heuristics)
         ai_thinking = None
         if self.use_llm and self.llm_scorer:
@@ -465,7 +481,7 @@ class NotificationProcessor:
                     notification_id=str(notification.get("id", "")),
                 )
                 if ntfy_sent:
-                    logger.info(f"Pushed notification via ntfy.sh")
+                    logger.info("Pushed notification via ntfy.sh")
             except Exception as e:
                 logger.warning(f"Failed to send via ntfy.sh: {e}")
 
