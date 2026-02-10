@@ -1,0 +1,24 @@
+[Unit]
+Description=Cortex Server - AI-powered notification and attention management
+Documentation=https://github.com/bkrabach/amplifier-app-server
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=%h/repos/notification-watcher/amplifier-app-server
+Environment="PATH=%h/repos/notification-watcher/amplifier-app-server/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-%h/.cortex/server.env
+ExecStart=%h/repos/notification-watcher/amplifier-app-server/.venv/bin/amplifier-server run --port 19420
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

@@ -332,9 +332,8 @@ def chat(session_id: str, server: str) -> None:
                             if data["type"] == "ack":
                                 console.print("[dim]Processing...[/dim]")
                             elif data["type"] == "response":
-                                console.print(
-                                    f"\n[bold green]Assistant:[/bold green] {data['payload']['content']}\n"
-                                )
+                                content = data["payload"]["content"]
+                                console.print(f"\n[bold green]Assistant:[/bold green] {content}\n")
                                 break
                             elif data["type"] == "error":
                                 console.print(f"[red]Error: {data['payload']['message']}[/red]\n")
@@ -347,6 +346,169 @@ def chat(session_id: str, server: str) -> None:
             console.print(f"[red]Connection error: {e}[/red]")
 
     asyncio.get_event_loop().run_until_complete(chat_loop())
+
+
+@cli.group()
+def service():
+    """Manage Cortex Server as a systemd service (Linux)."""
+    pass
+
+
+@service.command("install")
+@click.option(
+    "--port",
+    default=19420,
+    type=int,
+    help="Port to run the server on",
+)
+@click.option(
+    "--env-file",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Path to environment file with API keys etc.",
+)
+def service_install(port: int, env_file: Path | None) -> None:
+    """Install Cortex Server as a systemd user service.
+
+    This configures the server to start automatically when you log in,
+    and enables 'lingering' so it runs even when you're not logged in.
+
+    Examples:
+
+        # Basic install
+        amplifier-server service install
+
+        # With custom port
+        amplifier-server service install --port 8080
+
+        # With environment file for API keys
+        amplifier-server service install --env-file ~/.cortex/server.env
+    """
+    from amplifier_server import startup
+
+    if startup.install(port=port, env_file=env_file):
+        console.print("[green]✅ Installed![/green] Cortex Server will start automatically.")
+        console.print()
+        console.print("To start it now:")
+        console.print("  amplifier-server service start")
+        console.print()
+        console.print("To check status:")
+        console.print("  amplifier-server service status")
+        console.print()
+        console.print("To view logs:")
+        console.print("  amplifier-server service logs")
+    else:
+        console.print("[red]❌ Installation failed.[/red] See errors above.")
+        sys.exit(1)
+
+
+@service.command("uninstall")
+def service_uninstall() -> None:
+    """Remove Cortex Server from systemd.
+
+    This stops the service and removes it from automatic startup.
+    """
+    from amplifier_server import startup
+
+    if startup.uninstall():
+        console.print(
+            "[green]✅ Uninstalled.[/green] Cortex Server will no longer start automatically."
+        )
+    else:
+        console.print("[red]❌ Uninstallation failed.[/red] See errors above.")
+        sys.exit(1)
+
+
+@service.command("status")
+def service_status() -> None:
+    """Check if Cortex Server service is installed and running."""
+    from amplifier_server import startup
+
+    status = startup.get_status()
+
+    if not status.get("installed"):
+        console.print("[yellow]Not installed[/yellow] as a systemd service")
+        console.print()
+        console.print("To install:")
+        console.print("  amplifier-server service install")
+        return
+
+    console.print("[green]✅ Installed[/green] as systemd user service")
+    console.print()
+
+    if status.get("running"):
+        console.print("Status: [green]Running[/green]")
+    else:
+        console.print("Status: [yellow]Stopped[/yellow]")
+
+    if status.get("active"):
+        console.print(f"Active: {status['active']}")
+    if status.get("pid"):
+        console.print(f"PID: {status['pid']}")
+
+
+@service.command("start")
+def service_start() -> None:
+    """Start the Cortex Server service."""
+    from amplifier_server import startup
+
+    if not startup.is_installed():
+        console.print("[red]❌ Not installed.[/red] Run 'amplifier-server service install' first.")
+        sys.exit(1)
+
+    if startup.start():
+        console.print("[green]✅ Started[/green] Cortex Server")
+    else:
+        console.print("[red]❌ Failed to start.[/red] See errors above.")
+        console.print()
+        console.print("Check logs with: amplifier-server service logs")
+        sys.exit(1)
+
+
+@service.command("stop")
+def service_stop() -> None:
+    """Stop the Cortex Server service."""
+    from amplifier_server import startup
+
+    if startup.stop():
+        console.print("[green]✅ Stopped[/green] Cortex Server")
+    else:
+        console.print("[red]❌ Failed to stop.[/red] See errors above.")
+        sys.exit(1)
+
+
+@service.command("restart")
+def service_restart() -> None:
+    """Restart the Cortex Server service."""
+    from amplifier_server import startup
+
+    if not startup.is_installed():
+        console.print("[red]❌ Not installed.[/red] Run 'amplifier-server service install' first.")
+        sys.exit(1)
+
+    if startup.restart():
+        console.print("[green]✅ Restarted[/green] Cortex Server")
+    else:
+        console.print("[red]❌ Failed to restart.[/red] See errors above.")
+        console.print()
+        console.print("Check logs with: amplifier-server service logs")
+        sys.exit(1)
+
+
+@service.command("logs")
+@click.option("-f", "--follow", is_flag=True, help="Follow log output (like tail -f)")
+@click.option("-n", "--lines", default=50, help="Number of lines to show")
+def service_logs(follow: bool, lines: int) -> None:
+    """View Cortex Server service logs."""
+    from amplifier_server import startup
+
+    if not startup.is_installed():
+        console.print("[red]❌ Not installed.[/red] No logs available.")
+        sys.exit(1)
+
+    output = startup.logs(follow=follow, lines=lines)
+    if output:
+        console.print(output)
 
 
 def main() -> None:
