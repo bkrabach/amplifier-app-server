@@ -100,6 +100,18 @@ def install(
         env_file = Path.home() / ".cortex" / "server.env"
 
     # Create the service file content
+    # Include common paths where tools like uv might be installed
+    path_dirs = [
+        f"{venv}/bin",
+        str(Path.home() / ".local/bin"),
+        str(Path.home() / ".cargo/bin"),
+        "/snap/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    ]
+    path_env = ":".join(path_dirs)
+
     service_content = f"""[Unit]
 Description=Cortex Server - AI-powered notification and attention management
 Documentation=https://github.com/bkrabach/amplifier-app-server
@@ -108,7 +120,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory={working_dir}
-Environment="PATH={venv}/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH={path_env}"
 """
 
     if env_file.exists():
