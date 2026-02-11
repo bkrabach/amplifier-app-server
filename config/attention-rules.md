@@ -7,67 +7,98 @@
 ## VIP Senders (Always Push)
 - Kevin Scott
 - Sam Schillace
-- Charlie Krabach
+- Charlie Krabach (wife)
+- Dan Shapiro
+- Jesse Vincent
+- Justin (StrongDM - hosting event tomorrow in Palo Alto)
 - Family members
-
-## Focus Mode Rules
-When in focus mode:
-- Only push for VIPs or explicit @mentions
-- Summarize everything else
-- Suppress system notifications entirely
 
 ## App-Specific Rules
 
-### Outlook
-- **Push**: VIPs, "urgent" in subject, meeting changes for today
-- **Summarize**: Regular email, newsletters
-- **Suppress**: Marketing, automated reports
+### CRITICAL: Ignore ntfy (Prevents Loop)
+- **ALWAYS SUPPRESS**: Any notification where the sender/source is "ntfy"
+- These are OUR OWN outbound notifications being reflected back via Phone Link
+- Do NOT evaluate, do NOT score, do NOT re-push - just ignore completely
 
-### Teams
-- **Push**: Direct messages, @mentions, channel keywords: "launch", "outage", "regression"
-- **Summarize**: Channel chatter, reactions
-- **Suppress**: Bot messages unless actionable
-
-### Phone Link
+### Phone Link / SMS
+- **Push**: ALL messages from Charlie Krabach (wife), EXCEPT videos to watch
 - **Push**: Family members, unknown numbers (might be important)
 - **Summarize**: Friend messages
 - **Suppress**: Marketing SMS, verification codes (unless time-sensitive)
 
+### WhatsApp
+- **Push**: ALL messages related to Palo Alto trip/meetings
+- **Push**: Messages from Dan Shapiro, Jesse Vincent, Sam Schillace, Justin (StrongDM)
+- **Push**: Direct messages, trip coordination, meeting logistics
+- **Push**: StrongDM event details and coordination
+- **Summarize**: General group chatter not related to Palo Alto
+- **Suppress**: After-hours social chat unless trip-related
+
+### Outlook
+- **Push**: ONLY critical/urgent items (P0/P1, outages, emergency decisions)
+- **Summarize**: Regular work email
+- **Suppress**: Marketing, automated reports, non-urgent updates
+
+### Teams
+- **Push**: ONLY critical items (outages, P0/P1 issues, emergency @mentions)
+- **Push**: Channel keywords: "outage", "down", "P0", "P1", "critical"
+- **Summarize**: Regular direct messages, @mentions
+- **Suppress**: Channel chatter, reactions, non-urgent bot messages
+
 ### Slack
-- **Push**: Direct messages, @mentions
-- **Summarize**: Channel activity
+- **Push**: ONLY critical direct messages or @mentions
+- **Summarize**: Regular channel activity
 - **Suppress**: Bot notifications
 
 ## Time-Based Rules
-- **Before 8am**: Only push emergencies and family
-- **8am-6pm**: Normal rules apply
-- **After 6pm**: Family priority, work can wait unless urgent
-- **Weekends**: Family only, suppress work unless emergency
+- **Before 8am**: Only emergencies and family
+- **8am-6pm**: Normal rules apply (modified by current context below)
+- **After 6pm**: Family priority, work can wait unless critical emergency
+- **Weekends**: Family only, suppress work unless critical emergency
 
 ## Keyword Triggers (Always Elevate Priority)
 - "urgent", "ASAP", "emergency"
 - "deadline", "due today", "EOD"
 - "blocking", "outage", "down"
 - "decision needed", "approval required"
-- "bug", "crash", "error", "exception", "failure"
-- "regression", "broken", "not working"
-- "critical issue", "P0", "P1"
+- "P0", "P1", "critical issue"
 
 ## Current Context (Time-Sensitive Instructions)
 
-**Active until 12:50 PM:**
-- **HIGH ALERT for bugs** - Push for ANY bug report, no matter how minor
-- Includes: bug mentions, errors, crashes, exceptions, test failures
-- Rationale: In meetings, need to be aware of all issues being reported
-- Push immediately for:
-  - ANY bug reports or crash notifications (even minor)
-  - P0/P1 issues
-  - Production errors or regressions
-  - VIP requests
-  - Family messages
+### 🛫 ACTIVE: Palo Alto Trip (Feb 3-6, 2026)
+**Status**: Traveling to Palo Alto - boarding flight now, returning Thursday ~noon
 
-**After 12:50 PM:**
-- **Standard bug filtering** - Only push for IMPACTFUL bugs
-- Push criteria: P0/P1, production issues, user-impacting crashes
-- Summarize: Minor bugs, test failures, dev environment issues
-- Rationale: Post-meetings, filter for what actually needs immediate attention
+**Push Immediately:**
+- ALL SMS/Phone Link from Charlie Krabach (wife) - EXCEPT videos
+- ALL WhatsApp messages related to Palo Alto trip/meetings
+- Messages from: Dan Shapiro, Jesse Vincent, Sam Schillace, Justin (StrongDM)
+- Trip logistics: flight changes, meeting times/locations, dinner plans
+- StrongDM event coordination (Justin hosting tomorrow)
+- Microsoft CRITICAL only: P0/P1, production outages, emergency decisions
+
+**Summarize/Hold:**
+- Regular work email and Teams messages
+- Social WhatsApp group chat not related to Palo Alto
+- Videos from Charlie (can watch later)
+- Non-urgent Microsoft matters
+
+**Suppress:**
+- Marketing, newsletters, automated reports
+- Minor bugs, test failures, dev environment issues
+- Non-urgent work notifications
+
+**Key People & Events in Palo Alto:**
+- **Justin** (StrongDM) - Hosting event tomorrow (Feb 4)
+- **Dan Shapiro** - Meeting coordination
+- **Jesse Vincent** - Meeting coordination
+- **Sam Schillace** - Meeting coordination
+- Others TBD during trip
+
+**Rationale**: Focus on trip coordination and family. Only interrupt for true work emergencies.
+
+---
+
+**After Feb 6, 2026 (post-trip):**
+- Return to standard time-based and VIP rules
+- Resume normal work notification filtering
+- Clear this travel context section

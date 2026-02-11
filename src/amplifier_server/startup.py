@@ -112,6 +112,8 @@ def install(
     ]
     path_env = ":".join(path_dirs)
 
+    home_dir = Path.home()
+
     service_content = f"""[Unit]
 Description=Cortex Server - AI-powered notification and attention management
 Documentation=https://github.com/bkrabach/amplifier-app-server
@@ -121,6 +123,8 @@ After=network.target
 Type=simple
 WorkingDirectory={working_dir}
 Environment="PATH={path_env}"
+Environment="HOME={home_dir}"
+Environment="USER={os.environ.get("USER", "")}"
 """
 
     if env_file.exists():
