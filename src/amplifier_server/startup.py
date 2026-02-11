@@ -113,6 +113,7 @@ def install(
     path_env = ":".join(path_dirs)
 
     home_dir = Path.home()
+    user = os.environ.get("USER", "")
 
     service_content = f"""[Unit]
 Description=Cortex Server - AI-powered notification and attention management
@@ -124,7 +125,12 @@ Type=simple
 WorkingDirectory={working_dir}
 Environment="PATH={path_env}"
 Environment="HOME={home_dir}"
-Environment="USER={os.environ.get("USER", "")}"
+Environment="USER={user}"
+Environment="XDG_CACHE_HOME={home_dir}/.cache"
+Environment="XDG_CONFIG_HOME={home_dir}/.config"
+Environment="XDG_DATA_HOME={home_dir}/.local/share"
+Environment="UV_CACHE_DIR={home_dir}/.cache/uv"
+Environment="VIRTUAL_ENV={venv}"
 """
 
     if env_file.exists():
