@@ -142,10 +142,6 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-
 [Install]
 WantedBy=default.target
 """
