@@ -1,6 +1,7 @@
 """Main FastAPI server for Amplifier Server."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -31,15 +32,23 @@ from amplifier_server.cortex_scheduler import CortexScheduler
 from amplifier_server.device_manager import DeviceManager
 from amplifier_server.feedback_store import FeedbackStore
 from amplifier_server.llm_scorer import LLMScorer
-import os
-
 from amplifier_server.notification_processor import NotificationProcessor, ScoringConfig
-from amplifier_server.ntfy_notifier import NtfyConfig
 from amplifier_server.notification_store import NotificationStore
+from amplifier_server.ntfy_notifier import NtfyConfig
 from amplifier_server.session_manager import SessionManager
 
 # Load .env file into os.environ (for tools that need API keys)
 load_dotenv()
+
+# Also load Amplifier keys and Cortex server env (same pattern as Amplifier CLI)
+# This ensures API keys are available when running as a systemd service
+_amplifier_keys = Path.home() / ".amplifier" / "keys.env"
+if _amplifier_keys.exists():
+    load_dotenv(_amplifier_keys, override=False)
+
+_cortex_server_env = Path.home() / ".cortex" / "server.env"
+if _cortex_server_env.exists():
+    load_dotenv(_cortex_server_env, override=False)
 
 logger = logging.getLogger(__name__)
 
