@@ -203,6 +203,9 @@ class AmplifierServer:
             # Initialize Cortex Core orchestrator
             await self._init_cortex_core()
 
+            # Initialize Cortex A2A responder (autonomous agent-to-agent session)
+            await self._init_cortex_a2a()
+
             yield
 
             logger.info("Amplifier Server shutting down")
@@ -452,6 +455,46 @@ class AmplifierServer:
         except Exception as e:
             logger.error(f"Failed to initialize Cortex Core: {e}")
             # Non-fatal - server can still run for notifications
+
+    async def _init_cortex_a2a(self) -> None:
+        """Initialize the Cortex A2A autonomous responder session.
+
+        This creates a long-running session that handles incoming A2A messages
+        from peer agents on the mesh network. Failure is non-fatal — the server
+        can still run without A2A capabilities.
+        """
+        try:
+            bundle_path = Path(__file__).parent.parent.parent / "bundles" / "cortex-a2a.md"
+
+            if not bundle_path.exists():
+                logger.warning(f"Cortex A2A bundle not found: {bundle_path}")
+                return
+
+            # Pass config with expanded data_dir for file access
+            config = {
+                "tools": [
+                    {
+                        "module": "tool-filesystem",
+                        "config": {
+                            "allowed_write_paths": [
+                                str(self.data_dir / "config"),
+                            ],
+                        },
+                    }
+                ],
+            }
+
+            a2a_id = await self.session_manager.create_session(
+                bundle=str(bundle_path),
+                session_id="cortex-a2a",
+                config=config,
+            )
+
+            logger.info(f"Cortex A2A responder initialized: {a2a_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Cortex A2A: {e}")
+            # Non-fatal — server can still run without A2A
 
     def _setup_device_handlers(self) -> None:
         """Set up handlers for device messages."""
