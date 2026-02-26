@@ -13,6 +13,7 @@ from amplifier_server.ntfy_notifier import NtfyConfig, NtfyNotifier
 
 if TYPE_CHECKING:
     from amplifier_server.llm_scorer import LLMScorer
+    from amplifier_server.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +115,14 @@ class NotificationProcessor:
         llm_scorer: "LLMScorer | None" = None,
         use_llm: bool = False,
         ntfy_config: NtfyConfig | None = None,
+        session_manager: "SessionManager | None" = None,
     ):
         self.store = notification_store
         self.device_manager = device_manager
         self.config = config or ScoringConfig()
         self.llm_scorer = llm_scorer
         self.use_llm = use_llm  # Whether to use LLM scoring (vs heuristics only)
+        self.session_manager = session_manager
 
         # ntfy.sh integration for mobile push notifications
         self.ntfy_notifier: NtfyNotifier | None = None
@@ -504,6 +507,49 @@ class NotificationProcessor:
                     logger.info("Pushed notification via ntfy.sh")
             except Exception as e:
                 logger.warning(f"Failed to send via ntfy.sh: {e}")
+
+        # Proactive A2A broadcast for high-urgency notifications
+        if result.score >= 0.9 and self.session_manager:
+            asyncio.create_task(
+                self._a2a_broadcast(notification, result),
+                name=f"a2a-broadcast-{notification.get('id', 'unknown')}",
+            )
+
+    async def _a2a_broadcast(
+        self,
+        notification: dict[str, Any],
+        result: ScoringResult,
+    ) -> None:
+        """Broadcast high-urgency notification to A2A mesh (fire-and-forget).
+
+        Sends a proactive alert to the cortex-a2a session which will relay
+        it to ai-os per the proactive trigger rules in a2a-network.md.
+        """
+        try:
+            if not self.session_manager:
+                return
+
+            sender = notification.get("sender", "unknown")
+            app = notification.get("app_name") or notification.get("app_id", "unknown")
+            body = notification.get("body", "")[:200]
+            score = result.score
+
+            prompt = (
+                f"PROACTIVE ALERT: High-urgency notification scored {score:.2f}. "
+                f"From: {sender} via {app}. Content: {body}. "
+                f"Per your proactive trigger rules in a2a-network.md, "
+                f"notify ai-os about this urgent notification."
+            )
+
+            await self.session_manager.execute(
+                session_id="cortex-a2a",
+                prompt=prompt,
+            )
+            logger.info(f"A2A broadcast sent for notification {notification.get('id')}")
+
+        except Exception as e:
+            # A2A broadcast failure must never block notification processing
+            logger.warning(f"A2A broadcast failed: {e}")
 
     def update_config(self, **kwargs) -> None:
         """Update scoring configuration."""

@@ -136,6 +136,7 @@ class AmplifierServer:
             device_manager=self.device_manager,
             config=self.scoring_config,
             ntfy_config=ntfy_config,
+            session_manager=self.session_manager,
         )
 
         # LLM scorer (initialized lazily on first use)
