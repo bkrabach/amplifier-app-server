@@ -171,9 +171,16 @@ class SessionManager:
             self._bundle_cache[bundle_uri] = bundle
         return self._bundle_cache[bundle_uri]
 
-    async def _prepare_bundle(self, bundle: Any) -> Any:
-        """Prepare a bundle for execution with caching."""
-        cache_key = f"{bundle.name}:{bundle.version}"
+    async def _prepare_bundle(self, bundle: Any, bundle_uri: str = "") -> Any:
+        """Prepare a bundle for execution with caching.
+
+        Args:
+            bundle: The bundle to prepare.
+            bundle_uri: Original bundle URI for cache keying. Required to avoid
+                cache collisions when compose() changes the bundle name (e.g.,
+                both cortex-core and cortex-a2a compose to 'config-override:1.0.0').
+        """
+        cache_key = bundle_uri or f"{bundle.name}:{bundle.version}"
         if cache_key not in self._prepared_cache:
             prepared = await bundle.prepare(install_deps=True)
             self._prepared_cache[cache_key] = prepared
@@ -267,7 +274,9 @@ class SessionManager:
             bundle = bundle.compose(override_bundle)
 
             # Prepare bundle (downloads modules)
-            prepared = await self._prepare_bundle(bundle)
+            # Pass bundle_uri to avoid cache collisions when compose() changes
+            # the bundle name (all overrides become 'config-override:1.0.0')
+            prepared = await self._prepare_bundle(bundle, bundle_uri=bundle_uri)
 
             # Create session
             session = await prepared.create_session(
