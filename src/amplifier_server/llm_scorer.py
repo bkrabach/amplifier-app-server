@@ -25,7 +25,7 @@ If your rules have time-based modes (e.g., "Active until 12:50 PM") and the curr
 indicates you should switch modes, use write_file to update {rules_file} BEFORE scoring.
 
 Then score this notification according to the active rules.
-
+{conversation_history}
 NOTIFICATION TO SCORE:
 - App: {app_name}
 - From: {sender}
@@ -183,12 +183,14 @@ class LLMScorer:
         self,
         notification: dict[str, Any],
         current_time: str | None = None,
+        conversation_history: list[dict[str, Any]] | None = None,
     ) -> LLMScoringResult:
         """Score a notification using the LLM.
 
         Args:
             notification: Notification data dict
             current_time: Current time string (for context)
+            conversation_history: Recent notifications from the same conversation thread
 
         Returns:
             LLMScoringResult with score, decision, and rationale
@@ -201,6 +203,22 @@ class LLMScorer:
 
         self._load_rules()  # Reload from disk
 
+        # Format conversation history if available
+        history_text = ""
+        if conversation_history:
+            lines = []
+            lines.append("\nRECENT CONVERSATION HISTORY (same thread, newest first):")
+            lines.append("Use this to understand the context of the notification being scored.")
+            for msg in conversation_history:
+                ts = msg.get("timestamp", "")
+                sender = msg.get("sender") or msg.get("title", "Unknown")
+                body = (msg.get("body") or "")[:200]
+                decision = msg.get("decision", "")
+                decision_tag = f" [{decision}]" if decision else ""
+                lines.append(f"  - [{ts}] {sender}: {body}{decision_tag}")
+            lines.append("")
+            history_text = "\n".join(lines)
+
         prompt = SCORING_FRAMEWORK.format(
             rules_file=str(self.rules_path),
             custom_rules=self._custom_rules or "No rules loaded",
@@ -209,7 +227,7 @@ class LLMScorer:
             sender=notification.get("sender", "Unknown"),
             title=notification.get("title", ""),
             body=notification.get("body", "")[:500],  # Limit body length
-            conversation=notification.get("conversation_hint", ""),
+            conversation_history=history_text,
         )
 
         try:

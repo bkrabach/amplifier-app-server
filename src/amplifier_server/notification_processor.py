@@ -337,14 +337,34 @@ class NotificationProcessor:
             return None
 
     async def _score_with_llm(self, notification: dict[str, Any]) -> ScoringResult:
-        """Score notification using LLM.
+        """Score notification using LLM with conversation context.
 
+        Fetches recent notifications from the same conversation thread
+        and passes them to the scorer for context-aware evaluation.
         Falls back to heuristics if LLM fails.
         """
         try:
-            # Score using LLM
+            # Fetch conversation history for context
+            conversation_history = None
+            try:
+                history = await self.store.get_conversation_history(
+                    notification, limit=10, hours=24
+                )
+                if history:
+                    conversation_history = history
+                    logger.debug(
+                        f"Found {len(history)} prior messages in conversation "
+                        f"for notification {notification.get('id')}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to fetch conversation history: {e}")
+
+            # Score using LLM with conversation context
             if self.llm_scorer:
-                llm_result = await self.llm_scorer.score(notification)
+                llm_result = await self.llm_scorer.score(
+                    notification,
+                    conversation_history=conversation_history,
+                )
 
                 return ScoringResult(
                     score=llm_result.score,

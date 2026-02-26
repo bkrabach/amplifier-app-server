@@ -298,6 +298,69 @@ class NotificationStore:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
+    async def get_conversation_history(
+        self,
+        notification: dict[str, Any],
+        limit: int = 10,
+        hours: int = 24,
+    ) -> list[dict[str, Any]]:
+        """Get recent notifications from the same conversation thread.
+
+        Matches by conversation_hint (group/channel name) + app_id,
+        or by sender + app_id for direct messages.
+        Returns most recent first, excluding the notification itself.
+
+        Args:
+            notification: The current notification to find history for
+            limit: Max number of history items to return
+            hours: How far back to look (default 24h)
+
+        Returns:
+            List of recent notifications in the same conversation, newest first
+        """
+        if not self._connection:
+            raise RuntimeError("Notification store not initialized")
+
+        from datetime import timedelta
+
+        since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        notification_id = notification.get("id")
+        app_id = notification.get("app_id") or notification.get("app_name")
+        conversation_hint = notification.get("conversation_hint")
+        sender = notification.get("sender")
+
+        if not app_id:
+            return []
+
+        # Build query - match by conversation or sender within same app
+        if conversation_hint:
+            # Group/channel - match by conversation name
+            query = """
+                SELECT * FROM notifications
+                WHERE app_id = ? AND conversation_hint = ?
+                AND timestamp >= ?
+                AND (id != ? OR ? IS NULL)
+                ORDER BY timestamp DESC LIMIT ?
+            """
+            params = [app_id, conversation_hint, since, notification_id, notification_id, limit]
+        elif sender:
+            # Direct message - match by sender within same app
+            query = """
+                SELECT * FROM notifications
+                WHERE app_id = ? AND sender = ?
+                AND timestamp >= ?
+                AND (id != ? OR ? IS NULL)
+                ORDER BY timestamp DESC LIMIT ?
+            """
+            params = [app_id, sender, since, notification_id, notification_id, limit]
+        else:
+            return []
+
+        async with self._lock:
+            cursor = self._connection.execute(query, params)
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
     async def get_by_id(self, notification_id: int) -> dict[str, Any] | None:
         """Get a specific notification by ID."""
         if not self._connection:
