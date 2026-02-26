@@ -34,6 +34,8 @@ tools:
   - module: tool-bash
   - module: tool-web
   - module: tool-delegate
+  - module: tool-a2a
+    source: git+https://github.com/microsoft/amplifier-bundle-a2a@main#subdirectory=modules/tool-a2a
   # Attention Firewall tools are mounted programmatically in session_manager.py
   # (The attention_firewall package structure doesn't match amplifier_module_* convention)
 ---
@@ -130,3 +132,5 @@ You: I'll delegate this to the triage manager who specializes in notification cl
 ---
 
 @foundation:context/shared/common-system-base.md
+
+@context/a2a-network.md
